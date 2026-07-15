@@ -17,6 +17,7 @@
         </div>
       </div>
       <div class="topbar-actions">
+        <button id="btn-pet" class="icon-btn" title="宠物之家（v2）">🏠</button>
         <button id="btn-open-full" class="icon-btn" title="在新标签页打开大屏模式">⛶</button>
         <button id="btn-options" class="icon-btn" title="设置">⚙</button>
       </div>
@@ -165,7 +166,44 @@
       </div>
 
       <div class="done-actions">
+        <button id="btn-goto-pet" class="btn ghost">🏠 去宠物之家</button>
         <button id="btn-new-task" class="btn primary big">再来一个任务！</button>
+      </div>
+    </section>
+
+    <!-- 视图：宠物之家 v2 · Option 1 骨架 -->
+    <section class="view view-pet hidden" data-view="pet">
+      <div class="pet-header">
+        <div class="pet-header-title">🏠 宠物之家 <span class="v2-badge">v2 · beta</span></div>
+        <button id="btn-pet-back" class="icon-btn" title="返回">←</button>
+      </div>
+
+      <div class="pet-stage" id="pet-stage">
+        <div class="pet-avatar-wrap">
+          <div class="pet-avatar" id="pet-avatar">🐑</div>
+          <div class="pet-mood" id="pet-mood">😊</div>
+        </div>
+        <div class="pet-name" id="pet-name">懒羊羊</div>
+        <div class="pet-desc" id="pet-desc">—</div>
+      </div>
+
+      <div class="pet-stats">
+        <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-lv">1</div><div class="pet-stat-label">等级</div></div>
+        <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-food">0</div><div class="pet-stat-label">养料</div></div>
+        <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-fed">0</div><div class="pet-stat-label">喂养次数</div></div>
+      </div>
+
+      <div class="pet-actions">
+        <button id="btn-feed" class="btn primary big">🍼 喂一次（消耗 5 养料）</button>
+      </div>
+
+      <div class="pet-picker-title">切换宠物 · 长按 <b>自定义</b> 可上传形象</div>
+      <div class="pet-picker" id="pet-picker"></div>
+
+      <input type="file" id="pet-upload" accept="image/*" style="display:none" />
+
+      <div class="pet-footer-note">
+        v2 骨架已上线，后续 v2.1 计划：宠物动画、心情系统、上传图自动卡通化、宠物商店、好友互动。
       </div>
     </section>
   </div>

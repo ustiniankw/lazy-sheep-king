@@ -45,7 +45,7 @@ $('#btn-breakdown').addEventListener('click', async () => {
   const goal = $('#task-input').value.trim();
   if (!goal) {
     $('#task-input').focus();
-    $('#task-input').style.borderColor = '#ef476f';
+    $('#task-input').style.borderColor = '#b0562c';
     setTimeout(() => ($('#task-input').style.borderColor = ''), 800);
     return;
   }
@@ -351,3 +351,107 @@ function flash(msg) {
   const cur = await Storage.getCurrentTask();
   if (cur && cur.currentIndex < cur.steps.length && urlParams.get('full') === '1') enterStepsView(cur);
 })();
+
+// ================= v2 · Option 1 · 宠物系统骨架 =================
+import { Pets, PET_TYPES } from '../lib/pets.js';
+
+async function enterPetView() {
+  showView('pet');
+  await renderPet();
+}
+
+async function renderPet() {
+  const st = await Pets.getState();
+  const stats = await Storage.getStats();
+  const type = Pets.petTypeById(st.activeId);
+
+  // avatar
+  const avatar = $('#pet-avatar');
+  if (st.activeId === 'custom' && st.customImageDataUrl) {
+    avatar.innerHTML = `<img src="${st.customImageDataUrl}" alt="custom pet" />`;
+    $('#pet-name').textContent = st.customName || '我的宠物';
+    $('#pet-desc').textContent = '你上传的专属形象～ 一起加油！';
+  } else if (st.activeId === 'sheep') {
+    // 用插件 mascot 作为懒羊羊头像
+    avatar.innerHTML = `<img src="../icons/icon-256.png" alt="sheep" />`;
+    $('#pet-name').textContent = type.name;
+    $('#pet-desc').textContent = type.desc;
+  } else {
+    avatar.innerHTML = type.emoji;
+    $('#pet-name').textContent = type.name;
+    $('#pet-desc').textContent = type.desc;
+  }
+  $('#pet-mood').textContent = { happy: '😊', normal: '🙂', sad: '😴' }[st.mood] || '🙂';
+
+  $('#pet-stat-lv').textContent = String(stats.petLevel);
+  $('#pet-stat-food').textContent = String(stats.foodStock);
+  $('#pet-stat-fed').textContent = String(st.timesFed || 0);
+
+  // picker
+  const picker = $('#pet-picker');
+  picker.innerHTML = '';
+  PET_TYPES.forEach((p) => {
+    const unlocked = st.unlocked.includes(p.id) || p.id === 'sheep';
+    const slot = document.createElement('div');
+    slot.className = 'pet-slot' + (st.activeId === p.id ? ' active' : '') + (!unlocked ? ' locked' : '');
+    let emojiCell = p.emoji;
+    if (p.id === 'sheep') emojiCell = `<img src="../icons/icon-48.png" alt="sheep">`;
+    if (p.id === 'custom' && st.customImageDataUrl) emojiCell = `<img src="${st.customImageDataUrl}" alt="custom">`;
+    slot.innerHTML = `
+      <div class="pet-slot-emoji">${emojiCell}</div>
+      <div class="pet-slot-name">${p.name}</div>
+      ${unlocked ? '' : '<div class="pet-slot-lock">🔒 待解锁</div>'}
+    `;
+    // click 切换 / 长按自定义 → 上传
+    let pressT = 0;
+    slot.addEventListener('mousedown', () => { pressT = Date.now(); });
+    slot.addEventListener('mouseup', async () => {
+      const dt = Date.now() - pressT;
+      if (p.id === 'custom' && dt > 500) {
+        $('#pet-upload').click();
+      } else {
+        await Pets.setActive(p.id);
+        renderPet();
+      }
+    });
+    // 移动端 tap
+    slot.addEventListener('click', async (e) => {
+      // 兼容单击（非长按情况）
+      if (Date.now() - pressT < 500) {
+        if (p.id === 'custom' && !st.customImageDataUrl) {
+          $('#pet-upload').click();
+          return;
+        }
+        await Pets.setActive(p.id);
+        renderPet();
+      }
+    });
+    picker.appendChild(slot);
+  });
+}
+
+$('#btn-pet')?.addEventListener('click', enterPetView);
+$('#btn-goto-pet')?.addEventListener('click', enterPetView);
+$('#btn-pet-back')?.addEventListener('click', () => showView('input'));
+
+$('#btn-feed')?.addEventListener('click', async () => {
+  const r = await Pets.feed(1);
+  if (!r.ok) { flash(r.reason); return; }
+  flash('喂了一口！🍼 宠物好开心');
+  renderPet();
+});
+
+$('#pet-upload')?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const dataUrl = reader.result;
+    const name = prompt('给你的宠物起个名字？', '我的宠物') || '我的宠物';
+    await Pets.setCustomImage(dataUrl, name);
+    flash('自定义形象已绑定 🎉');
+    renderPet();
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
