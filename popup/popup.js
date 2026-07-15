@@ -1,8 +1,8 @@
-// popup.js — v0.3.0: 多任务并存 + 番茄钟
+// popup.js — v0.3.1: 多任务 + 按步骤倒计时 + 动态养料
 import { Storage } from '../lib/storage.js';
 import { breakdownTask, refineStep } from '../lib/breakdown.js';
 import { celebrateStep, celebrateAll } from '../lib/celebrate.js';
-import { createPomodoro, fmt as fmtPomo } from '../lib/pomodoro.js';
+import { createCountdown, fmt as fmtTimer, calcStepReward, calcTaskCompletionBonus } from '../lib/step_timer.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -296,23 +296,45 @@ async function renderSteps() {
 
   const card = $('#step-card');
   card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
+
+  // v0.3.1: 刷新步骤倒计时的分钟数显示 + 可选自动开始
+  if (typeof renderStimer === 'function') renderStimer(0, stimer.snapshot());
+  const settings = getSettingsCached();
+  if (settings?.stepTimer?.autoStart && stimer.snapshot().phase === 'idle') {
+    stimer.start(getCurrentStepMinutes());
+  }
 }
 
 $('#btn-done').addEventListener('click', async () => {
   if (!currentTask) return;
   const t = currentTask;
-  t.steps[t.currentIndex].done = true;
+  const step = t.steps[t.currentIndex];
+  // v0.3.1: 记录实际专注毫秒数并计算动态奖励
+  const timerSnap = stimer.snapshot();
+  const actualMs = timerSnap.elapsedActiveMs || 0;
+  const reward = calcStepReward({ estMinutes: step.estMinutes || 3, actualMs, skipped: false });
+  step.done = true;
+  step.actualMs = actualMs;
+  step.rewardTag = reward.tag;
   await Storage.setCurrentTask(t);
-  await Storage.addStepCompleted(1);
+  await Storage.addStepCompleted({ food: reward.food, exp: reward.exp });
+  stimer.stop();
+  // 反馈养料 + tag
+  const tagText = reward.tag === 'on-time' ? '⚡ 效率大王 +50%'
+    : reward.tag === 'over-time' ? '🐢 慢工出细活'
+    : reward.tag === 'no-timer' ? '📝 未计时'
+    : '';
+  flash(`+${reward.food} 养料 ${tagText}`);
   celebrateStep({ sound: (await Storage.getSettings()).soundEnabled !== false });
   setTimeout(async () => {
     t.currentIndex += 1;
     if (t.currentIndex >= t.steps.length) {
       await Storage.setCurrentTask(t);
-      await Storage.pushHistory({ id: t.id, goal: t.goal, stepsCount: t.steps.length, completedAt: Date.now() });
-      await Storage.addTaskCompleted();
+      const bonus = calcTaskCompletionBonus(t);
+      await Storage.pushHistory({ id: t.id, goal: t.goal, stepsCount: t.steps.length, completedAt: Date.now(), taskBonus: bonus });
+      await Storage.addTaskCompleted(bonus);
       await Storage.clearCurrentTask();
-      enterDoneView();
+      enterDoneView({ bonus });
     } else {
       await Storage.setCurrentTask(t);
       renderSteps();
@@ -324,6 +346,7 @@ $('#btn-skip').addEventListener('click', async () => {
   if (!currentTask) return;
   const t = currentTask;
   t.steps[t.currentIndex].skipped = true;
+  stimer.stop();
   t.currentIndex += 1;
   if (t.currentIndex >= t.steps.length) {
     await Storage.setCurrentTask(t);
@@ -366,12 +389,12 @@ $('#btn-quit').addEventListener('click', async () => {
   if (!confirm('确定放弃当前任务吗？下次再打开时任务就不见啦。')) return;
   await Storage.clearCurrentTask();
   currentTask = null;
-  pomo.stop();
+  stimer.stop();
   showView('input'); refreshResumeCard();
 });
 
 $('#btn-back-tasks')?.addEventListener('click', () => {
-  pomo.stop();
+  stimer.stop();
   showView('input');
   refreshResumeCard();
 });
@@ -385,7 +408,11 @@ async function enterDoneView(opts = {}) {
   $('#stat-food').textContent = String(stats.foodStock);
   $('#pet-food-2').textContent = String(stats.foodStock);
   $('#pet-lv').textContent = String(stats.petLevel);
-  if (opts.partial) $('#done-sub').textContent = '有几步跳过了没关系，能开始就是胜利～';
+  if (opts.partial) {
+    $('#done-sub').textContent = '有几步跳过了没关系，能开始就是胜利～';
+  } else if (opts.bonus) {
+    $('#done-sub').textContent = `你已经比 99% 的懒羊羊更勤快啦～ 🎁 完成奖励 +${opts.bonus.food} 养料 / +${opts.bonus.exp} 经验`;
+  }
   celebrateAll({ sound: (await Storage.getSettings()).soundEnabled !== false });
 }
 
@@ -528,36 +555,28 @@ $('#pet-upload')?.addEventListener('change', async (e) => {
 });
 
 
-// ================= v0.3.0 · 番茄钟 =================
-const pomo = createPomodoro({
-  workMinutes: 25, breakMinutes: 5, autoStartNext: true, soundOnEnd: true,
-  onTick: (leftMs, state) => renderPomo(leftMs, state),
-  onPhaseEnd: (finished, state) => {
-    // 简单的完成音效
+// ================= v0.3.1 · 按步骤倒计时 =================
+const stimer = createCountdown({
+  onTick: (leftMs, state) => renderStimer(leftMs, state),
+  onEnd: (state) => {
     try {
-      const cfg = getSettingsCached()?.pomodoro;
-      if (cfg?.soundOnEnd !== false) beepPomo(finished);
+      const cfg = getSettingsCached()?.stepTimer;
+      if (cfg?.endSound !== false) beepDone();
     } catch {}
-    flash(finished === 'work' ? '🍅 一段专注结束，去伸个懒腰吧～' : '☕ 小憩结束，回到专注！');
+    flash('⏰ 时间到！可以点「完成」或「＋1 分钟」再来一会儿～');
+    if (getSettingsCached()?.stepTimer?.autoAddOnEnd) {
+      stimer.addMinutes(1);
+      stimer.resume();
+    }
   },
 });
 
-async function primePomoConfig() {
-  const s = await Storage.getSettings();
-  const p = s.pomodoro || {};
-  pomo.updateConfig(p);
-  $('#pomo-work-mins').textContent = String(p.workMinutes || 25);
-  $('#pomo-break-mins').textContent = String(p.breakMinutes || 5);
-}
-
-function beepPomo(finishedPhase) {
+function beepDone() {
   try {
     const AC = window.AudioContext || window.webkitAudioContext;
     const ctx = new AC();
     const t = ctx.currentTime;
-    // work 结束用铃声，break 结束用轻快的哒哒
-    const freqs = finishedPhase === 'work' ? [880, 1175, 1568] : [523, 784];
-    freqs.forEach((f, i) => {
+    [880, 1175, 1568].forEach((f, i) => {
       const o = ctx.createOscillator(); const g = ctx.createGain();
       o.type = 'triangle'; o.frequency.value = f;
       g.gain.setValueAtTime(0.0001, t + i * 0.18);
@@ -570,48 +589,50 @@ function beepPomo(finishedPhase) {
   } catch {}
 }
 
-function renderPomo(leftMs, state) {
-  const card = $('#pomo-card'); if (!card) return;
-  card.dataset.phase = state.phase;
-  const badge = $('#pomo-badge');
-  const time = $('#pomo-time');
-  const startBtn = $('#btn-pomo-start');
-  const pauseBtn = $('#btn-pomo-pause');
-  const resumeBtn = $('#btn-pomo-resume');
-  const stopBtn = $('#btn-pomo-stop');
-  const cycles = $('#pomo-cycles');
-  cycles.textContent = String(state.cycleCount || 0);
+function getCurrentStepMinutes() {
+  const step = currentTask?.steps?.[currentTask?.currentIndex];
+  return Math.max(1, Math.round(step?.estMinutes || 3));
+}
 
-  const isRunning = state.phase === 'work' || state.phase === 'break';
-  const isPaused = state.phase === 'paused';
+function renderStimer(leftMs, state) {
+  const card = $('#stimer-card'); if (!card) return;
+  card.dataset.phase = state.phase;
+  const mins = getCurrentStepMinutes();
+  $('#stimer-plan').textContent = String(mins);
+  $('#btn-stimer-plan').textContent = String(mins);
+  const badge = $('#stimer-badge');
+  const time = $('#stimer-time');
+  const startBtn = $('#btn-stimer-start');
+  const pauseBtn = $('#btn-stimer-pause');
+  const resumeBtn = $('#btn-stimer-resume');
+  const addBtn = $('#btn-stimer-add');
+  const stopBtn = $('#btn-stimer-stop');
 
   if (state.phase === 'idle') {
-    badge.textContent = '🍅 番茄钟 · 未开始';
+    badge.textContent = '🕐 步骤倒计时 · 未开始';
     time.textContent = '--:--';
-  } else if (state.phase === 'work') {
-    badge.textContent = '🍅 专注中';
-    time.textContent = fmtPomo(leftMs);
-  } else if (state.phase === 'break') {
-    badge.textContent = '☕ 小憩中';
-    time.textContent = fmtPomo(leftMs);
+  } else if (state.phase === 'running') {
+    badge.textContent = '🔥 专注中';
+    time.textContent = fmtTimer(leftMs);
   } else if (state.phase === 'paused') {
     badge.textContent = '⏸ 已暂停';
-    time.textContent = fmtPomo(leftMs);
+    time.textContent = fmtTimer(leftMs);
+  } else if (state.phase === 'ended') {
+    badge.textContent = '✅ 时间到';
+    time.textContent = '00:00';
   }
-  startBtn.classList.toggle('hidden', isRunning || isPaused);
-  pauseBtn.classList.toggle('hidden', !isRunning);
-  resumeBtn.classList.toggle('hidden', !isPaused);
+  startBtn.classList.toggle('hidden', state.phase === 'running' || state.phase === 'paused');
+  pauseBtn.classList.toggle('hidden', state.phase !== 'running');
+  resumeBtn.classList.toggle('hidden', state.phase !== 'paused');
+  addBtn.classList.toggle('hidden', state.phase === 'idle');
   stopBtn.classList.toggle('hidden', state.phase === 'idle');
 }
 
-$('#btn-pomo-start')?.addEventListener('click', async () => {
-  await primePomoConfig();
-  pomo.start('work');
-});
-$('#btn-pomo-pause')?.addEventListener('click', () => pomo.pause());
-$('#btn-pomo-resume')?.addEventListener('click', () => pomo.resume());
-$('#btn-pomo-stop')?.addEventListener('click', () => pomo.stop());
+$('#btn-stimer-start')?.addEventListener('click', () => stimer.start(getCurrentStepMinutes()));
+$('#btn-stimer-pause')?.addEventListener('click', () => stimer.pause());
+$('#btn-stimer-resume')?.addEventListener('click', () => stimer.resume());
+$('#btn-stimer-add')?.addEventListener('click', () => stimer.addMinutes(1));
+$('#btn-stimer-stop')?.addEventListener('click', () => stimer.stop());
 
 // 初次渲染
-renderPomo(0, pomo.snapshot());
-primePomoConfig();
+renderStimer(0, stimer.snapshot());

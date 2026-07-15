@@ -425,8 +425,8 @@ a:hover { text-decoration: underline; }
 .tasks-item-bar-fill { height: 100%; background: linear-gradient(90deg, #e6a940, #b0562c); border-radius: 999px; transition: width .3s; }
 .tasks-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
 
-/* ===== v0.3.0 · 番茄钟 ===== */
-.pomo-card {
+/* ===== v0.3.1 · 步骤倒计时（替代 v0.3.0 番茄钟） ===== */
+.stimer-card {
   margin: 10px 0;
   background: linear-gradient(180deg, #fff8e4, #ffefcc);
   border: 1px solid #f0c96d;
@@ -434,16 +434,15 @@ a:hover { text-decoration: underline; }
   padding: 10px 12px;
   transition: background .3s, border-color .3s;
 }
-.pomo-card[data-phase="work"]  { background: linear-gradient(180deg, #ffe4d6, #ffcaa8); border-color: #b0562c; }
-.pomo-card[data-phase="break"] { background: linear-gradient(180deg, #dff5d0, #b8e6a0); border-color: #6bb04f; }
-.pomo-card[data-phase="paused"]{ background: linear-gradient(180deg, #eee, #ddd); border-color: #999; }
-.pomo-row { display: flex; justify-content: space-between; align-items: center; }
-.pomo-badge { font-weight: 700; color: #5c3a1e; font-size: 13px; }
-.pomo-time {
+.stimer-card[data-phase="running"] { background: linear-gradient(180deg, #ffe4d6, #ffcaa8); border-color: #b0562c; }
+.stimer-card[data-phase="paused"]  { background: linear-gradient(180deg, #eee, #ddd); border-color: #999; }
+.stimer-card[data-phase="ended"]   { background: linear-gradient(180deg, #dff5d0, #b8e6a0); border-color: #6bb04f; }
+.stimer-row { display: flex; justify-content: space-between; align-items: center; }
+.stimer-badge { font-weight: 700; color: #5c3a1e; font-size: 13px; }
+.stimer-time {
   font-family: 'SF Mono', Menlo, Consolas, monospace;
   font-size: 22px; font-weight: 700; color: #5c3a1e;
   font-variant-numeric: tabular-nums;
 }
-.pomo-hint { font-size: 11px; color: #8c7455; margin: 4px 0 6px; }
-.pomo-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.pomo-cycles { margin-left: auto; font-size: 12px; color: #b0562c; font-weight: 700; }
+.stimer-hint { font-size: 11px; color: #8c7455; margin: 4px 0 6px; }
+.stimer-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }

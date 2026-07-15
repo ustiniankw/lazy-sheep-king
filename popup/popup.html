@@ -124,19 +124,19 @@
         <div class="mascot-say" id="mascot-say">"简单到不能再简单啦，来嘛来嘛～"</div>
       </div>
 
-      <!-- v0.3.0 · 番茄钟 -->
-      <div class="pomo-card" id="pomo-card" data-phase="idle">
-        <div class="pomo-row">
-          <div class="pomo-badge" id="pomo-badge">🍅 番茄钟 · 未开始</div>
-          <div class="pomo-time" id="pomo-time">--:--</div>
+      <!-- v0.3.1 · 步骤倒计时（替代 v0.3.0 番茄钟） -->
+      <div class="stimer-card" id="stimer-card" data-phase="idle">
+        <div class="stimer-row">
+          <div class="stimer-badge" id="stimer-badge">🕐 步骤倒计时 · 未开始</div>
+          <div class="stimer-time" id="stimer-time">--:--</div>
         </div>
-        <div class="pomo-hint" id="pomo-hint">按下 🍅 开始一段 <b id="pomo-work-mins">25</b> 分钟专注，然后自动进入 <b id="pomo-break-mins">5</b> 分钟小憩。</div>
-        <div class="pomo-actions">
-          <button id="btn-pomo-start" class="btn tiny primary">🍅 开始专注</button>
-          <button id="btn-pomo-pause" class="btn tiny ghost hidden">⏸ 暂停</button>
-          <button id="btn-pomo-resume" class="btn tiny primary hidden">▶ 继续</button>
-          <button id="btn-pomo-stop" class="btn tiny ghost hidden">■ 结束</button>
-          <span class="pomo-cycles">🍅 x <span id="pomo-cycles">0</span></span>
+        <div class="stimer-hint" id="stimer-hint">这一步预计 <b id="stimer-plan">3</b> 分钟。点 🕐 开始倒计时，时间到会响一下～</div>
+        <div class="stimer-actions">
+          <button id="btn-stimer-start" class="btn tiny primary">🕐 开始 <span id="btn-stimer-plan">3</span> 分钟倒计时</button>
+          <button id="btn-stimer-pause" class="btn tiny ghost hidden">⏸ 暂停</button>
+          <button id="btn-stimer-resume" class="btn tiny primary hidden">▶ 继续</button>
+          <button id="btn-stimer-add" class="btn tiny ghost hidden">＋1 分钟</button>
+          <button id="btn-stimer-stop" class="btn tiny ghost hidden">⏹ 停止</button>
         </div>
       </div>
 

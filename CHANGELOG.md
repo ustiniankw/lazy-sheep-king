@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## v0.3.1 — 按步骤倒计时 + 动态养料（2026-07-15）
+
+🚀 **在线试玩**：https://e628d62014a7.aime-app.bytedance.net
+
+### 背景
+用户反馈：v0.3.0 引入了 25/5 固定番茄钟，但步骤 `estMinutes` 各不相同（1-5 分钟），"专注 25 分钟"根本对不上一个 1 分钟的小步。v0.3.1 把它重构成**每步独立倒计时**，并让养料随实际用时动态发放。
+
+### 新增
+- **🕐 按步骤倒计时**：分步页 🕐 按钮直接按当前步骤的 `estMinutes` 启动倒计时（1 → 5 分钟自适应）
+- **暂停 / 继续 / +1 分钟 / 停止**
+- **时间到提示音**（Web Audio 3 音铃声）+ toast，可选自动 +1 分钟继续
+- **动态养料公式**（`lib/step_timer.js` → `calcStepReward / calcTaskCompletionBonus`）：
+  - `base food = estMinutes`（1 min = 1 养料，5 min = 5 养料）
+  - 未计时 → 保底 base（`no-timer`）
+  - 实际用时 ≤ estMinutes × 1.05 → **+50% 效率奖励**（`on-time`）
+  - 实际用时 ∈ (1x, 2x] → base 无奖励（`normal`）
+  - 实际用时 > 2x → base 无奖励（`over-time`）
+  - 跳过 → 0（`skip`）
+- **任务完成额外奖励**：`sum(estMinutes) × 20%` 养料 + × 60% 经验，在 done 页显示
+- **step 记录 actualMs**：每个 step 完成时保存实际专注毫秒，方便后续 v0.4 做统计
+
+### 改造
+- 删除 `lib/pomodoro.js` + `tests/pomodoro.test.mjs`
+- 新建 `lib/step_timer.js` + `tests/step_timer.test.mjs`（15/15 ✅）
+- `Storage.addStepCompleted` / `addTaskCompleted` 支持显式 `{food, exp}` 入参
+- `settings.stepTimer`：`autoStart / endSound / autoAddOnEnd`（旧 `settings.pomodoro` 保留兼容字段但不再使用）
+- `popup.html / .js / .css`：`.pomo-*` → `.stimer-*`，phase running 红 / paused 灰 / ended 绿
+- `options`：番茄钟设置整段替换为步骤倒计时设置
+- `manifest.json`：0.3.0 → 0.3.1
+
+### 测试
+- 46 → **48 全部通过**（step_timer 15 / tasks 10 / breakdown 15 / pets 8）
+
 ## v0.3.0 — 多任务并存 & 番茄钟（2026-07-15）
 
 🚀 **在线试玩**：https://e628d62014a7.aime-app.bytedance.net
