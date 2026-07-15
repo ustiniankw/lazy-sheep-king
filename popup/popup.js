@@ -1,90 +1,203 @@
-// popup.js — v0.3.1: 多任务 + 按步骤倒计时 + 动态养料
+// popup.js — v0.3.3: 删除修复 / 宠物反馈 / 用户资料 / 同步基础
 import { Storage } from '../lib/storage.js';
-import { breakdownTask, refineStep } from '../lib/breakdown.js';
+import { breakdownTask, refineStep, rememberBreakdown } from '../lib/breakdown.js';
 import { celebrateStep, celebrateAll } from '../lib/celebrate.js';
 import { createCountdown, fmt as fmtTimer, calcStepReward, calcTaskCompletionBonus } from '../lib/step_timer.js';
+import { Pets, PET_TYPES, MOOD_META, computeMood, affinityProgress, todayFeedTotal } from '../lib/pets.js';
+import { buildHeatmap, summarize } from '../lib/calendar.js';
+import { ensureProfile, setDisplayName, regenerateUserId } from '../lib/user.js';
 
-const $ = (s, r = document) => r.querySelector(s);
-const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const APP_VERSION = '0.3.3';
+const $ = (selector, root = document) => root.querySelector(selector);
+const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+const urlParams = new URLSearchParams(location.search);
+const MASCOT_LINES = ['简单到不能再简单啦，来嘛来嘛～', '完成这一小步，就能马上再偷懒一下下！', '就当帮懒羊羊一个忙好吗～', '这一步，闭着眼睛都能做完！', '3、2、1，开动啦！'];
+const PET_MILESTONES = [10, 50, 100, 500];
+
+if (urlParams.get('full') === '1') document.body.classList.add('full');
+
+let currentTask = null;
+let settingsCache = null;
+let calDays = 30;
+let currentView = 'input';
+let armedDanger = null;
 
 function showView(name) {
+  currentView = name;
+  resetDangerArming();
   $$('.view').forEach((el) => el.classList.toggle('hidden', el.dataset.view !== name));
 }
 
-const urlParams = new URLSearchParams(location.search);
-if (urlParams.get('full') === '1') document.body.classList.add('full');
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
 
-$('#btn-open-full').addEventListener('click', () => {
-  if (typeof chrome !== 'undefined' && chrome.tabs) chrome.tabs.create({ url: chrome.runtime.getURL('popup/popup.html?full=1') });
-  else window.open(location.pathname + '?full=1', '_blank');
+function sameId(a, b) {
+  return String(a ?? '') === String(b ?? '');
+}
+
+function formatDateTime(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDate(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function shortUserId(userId = '') {
+  if (!userId) return 'usr_******';
+  return userId.length <= 12 ? userId : `${userId.slice(0, 8)}…${userId.slice(-4)}`;
+}
+
+function isSyncSupported() {
+  return typeof chrome !== 'undefined' && !!chrome?.storage?.sync;
+}
+
+function getSettingsCached() {
+  return settingsCache;
+}
+
+async function primeSettingsCache() {
+  settingsCache = await Storage.getSettings();
+}
+
+function flash(message, options = {}) {
+  const toast = document.createElement('div');
+  toast.className = 'lsk-toast lsk-toast-show' + (options.big ? ' lsk-toast-big' : '');
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.remove('lsk-toast-show');
+    setTimeout(() => toast.remove(), 300);
+  }, options.duration || 1900);
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const input = document.createElement('textarea');
+      input.value = text;
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
+      input.select();
+      const ok = document.execCommand('copy');
+      input.remove();
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function armDangerButton(button, text) {
+  resetDangerArming();
+  armedDanger = {
+    button,
+    originalHtml: button.innerHTML,
+    timeoutId: window.setTimeout(resetDangerArming, 3000),
+  };
+  button.dataset.armed = '1';
+  button.classList.add('armed');
+  button.innerHTML = escapeHtml(text || button.dataset.confirmText || '再点一次确认');
+}
+
+function resetDangerArming() {
+  if (!armedDanger) return;
+  clearTimeout(armedDanger.timeoutId);
+  armedDanger.button.dataset.armed = '0';
+  armedDanger.button.classList.remove('armed');
+  armedDanger.button.innerHTML = armedDanger.originalHtml;
+  armedDanger = null;
+}
+
+function requiresSecondClick(button) {
+  if (!button) return false;
+  if (armedDanger?.button === button && button.dataset.armed === '1') return true;
+  armDangerButton(button, button.dataset.confirmText);
+  return false;
+}
+
+document.addEventListener('click', (event) => {
+  if (!armedDanger) return;
+  if (event.target === armedDanger.button || armedDanger.button.contains(event.target)) return;
+  resetDangerArming();
 });
+
 function openOptions() {
-  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.openOptionsPage) chrome.runtime.openOptionsPage();
+  if (typeof chrome !== 'undefined' && chrome?.runtime?.openOptionsPage) chrome.runtime.openOptionsPage();
   else window.open('../options/options.html', '_blank');
 }
-$('#btn-options').addEventListener('click', openOptions);
 
-// ---- LLM hint ----
 async function refreshLLMHint() {
   const settings = await Storage.getSettings();
   const enabled = settings?.llm?.enabled && settings?.llm?.apiKey;
-  const hint = $('#llm-hint'); const text = $('#llm-hint-text');
+  const hint = $('#llm-hint');
+  const text = $('#llm-hint-text');
   if (enabled) {
     hint.classList.add('ok');
     text.innerHTML = `已启用 LLM 拆解 · <b>${escapeHtml(settings.llm.providerId || 'custom')}</b> / <b>${escapeHtml(settings.llm.model || '')}</b> · <a href="#" class="link-options">修改</a>`;
   } else {
     hint.classList.remove('ok');
-    text.innerHTML = `当前使用「本地兜底模板」拆解。<a href="#" class="link-options">配置 LLM 更聪明</a>`;
+    text.innerHTML = `当前使用「本地兜底」拆解。<a href="#" class="link-options">配置 LLM 更聪明</a>`;
   }
-  text.querySelector('.link-options')?.addEventListener('click', (e) => { e.preventDefault(); openOptions(); });
+  text.querySelector('.link-options')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    openOptions();
+  });
 }
 
-// ---- input ----
-$$('.chip').forEach((c) => c.addEventListener('click', () => { $('#task-input').value = c.dataset.example; $('#task-input').focus(); }));
-
-$('#btn-breakdown').addEventListener('click', async () => {
-  const goal = $('#task-input').value.trim();
-  if (!goal) {
-    $('#task-input').focus();
-    $('#task-input').style.borderColor = '#b0562c';
-    setTimeout(() => ($('#task-input').style.borderColor = ''), 800);
-    return;
-  }
-  await doBreakdown(goal);
-});
-
-async function doBreakdown(goal) {
-  const btn = $('#btn-breakdown');
-  const prev = btn.innerHTML;
-  btn.disabled = true; btn.innerHTML = '<span class="btn-emoji">🍃</span>懒羊羊正在拆解中…';
-  try {
-    const settings = await Storage.getSettings();
-    const result = await breakdownTask(goal, settings);
-    const task = {
-      id: 'task_' + Date.now(), goal,
-      steps: result.steps.map((s) => ({ ...s, done: false, skipped: false })),
-      currentIndex: 0, createdAt: Date.now(),
-      source: result.source, meta: result.meta || null, warning: result.warning || null,
-    };
-    await Storage.setCurrentTask(task);
-    enterPlanView(task);
-  } catch (e) {
-    alert('拆解失败：' + (e.message || e));
-  } finally {
-    btn.disabled = false; btn.innerHTML = prev;
-  }
+async function refreshUserBadge() {
+  const profile = await ensureProfile();
+  const badge = $('#user-badge');
+  badge.textContent = shortUserId(profile.userId);
+  badge.title = `点击复制用户 ID：${profile.userId}`;
 }
 
-// ---- resume + tasks list (v0.3.0 多任务) ----
+async function showHome() {
+  showView('input');
+  await refreshResumeCard();
+  await refreshUserBadge();
+}
+
+async function openTaskById(taskId) {
+  const tasks = await Storage.getTasks();
+  const task = tasks.find((item) => sameId(item.id, taskId));
+  if (!task) return;
+  await Storage.setActiveTaskId(task.id);
+  currentTask = task;
+  enterStepsView(task);
+}
+
+async function discardTaskById(taskId) {
+  const tasks = await Storage.getTasks();
+  const task = tasks.find((item) => sameId(item.id, taskId));
+  if (!task) return;
+  const activeId = await Storage.getActiveTaskId();
+  const remainingSteps = Math.max(0, (task.steps?.length || 0) - Number(task.currentIndex || 0));
+  await Storage.deleteTask(task.id);
+  if (sameId(activeId, task.id)) {
+    currentTask = null;
+    stimer.stop();
+    await showHome();
+  } else {
+    await refreshResumeCard();
+  }
+  flash(`已丢弃任务 · ${remainingSteps} 步未完成`);
+}
+
 async function refreshResumeCard() {
   const tasks = await Storage.getTasks();
   const active = await Storage.getActiveTask();
-  const openTasks = tasks.filter((t) => Array.isArray(t.steps) && t.currentIndex < t.steps.length);
-
+  const openTasks = tasks.filter((task) => Array.isArray(task.steps) && task.currentIndex < task.steps.length);
   const resumeCard = $('#resume-card');
   const tasksCard = $('#tasks-card');
 
-  // 单个任务 → 显示旧的 resume-card；多个任务 → 显示 tasks-card
   if (openTasks.length === 0) {
     resumeCard.classList.add('hidden');
     tasksCard.classList.add('hidden');
@@ -92,64 +205,89 @@ async function refreshResumeCard() {
   }
 
   if (openTasks.length === 1) {
-    const t = openTasks[0];
+    const task = openTasks[0];
     resumeCard.classList.remove('hidden');
     tasksCard.classList.add('hidden');
-    $('#resume-goal').textContent = t.goal;
-    $('#resume-done').textContent = t.steps.filter((s) => s.done).length;
-    $('#resume-total').textContent = t.steps.length;
+    $('#resume-goal').textContent = task.goal;
+    $('#resume-done').textContent = String(task.steps.filter((stepItem) => stepItem.done).length);
+    $('#resume-total').textContent = String(task.steps.length);
+    $('#btn-resume').dataset.taskId = String(task.id);
+    $('#btn-discard').dataset.taskId = String(task.id);
     return;
   }
 
-  // 多任务
   resumeCard.classList.add('hidden');
   tasksCard.classList.remove('hidden');
   $('#tasks-count').textContent = String(openTasks.length);
-  const list = $('#tasks-list'); list.innerHTML = '';
-  openTasks.forEach((t) => {
-    const done = t.steps.filter((s) => s.done).length;
-    const total = t.steps.length;
-    const li = document.createElement('li');
-    li.className = 'tasks-item' + (active && active.id === t.id ? ' active' : '');
-    li.innerHTML = `
+  const list = $('#tasks-list');
+  list.innerHTML = '';
+  openTasks.forEach((task) => {
+    const done = task.steps.filter((stepItem) => stepItem.done).length;
+    const total = task.steps.length;
+    const item = document.createElement('li');
+    item.className = 'tasks-item' + (active && sameId(active.id, task.id) ? ' active' : '');
+    item.innerHTML = `
       <div class="tasks-item-main">
-        <div class="tasks-item-goal">${escapeHtml(t.goal)}</div>
-        <div class="tasks-item-sub">已完成 ${done}/${total} 步 · ${new Date(t.createdAt).toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
-        <div class="tasks-item-bar"><div class="tasks-item-bar-fill" style="width:${Math.round(done/total*100)}%"></div></div>
+        <div class="tasks-item-goal">${escapeHtml(task.goal)}</div>
+        <div class="tasks-item-sub">已完成 ${done}/${total} 步 · ${formatDateTime(task.createdAt)}</div>
+        <div class="tasks-item-bar"><div class="tasks-item-bar-fill" style="width:${Math.round((done / total) * 100)}%"></div></div>
       </div>
       <div class="tasks-item-actions">
-        <button class="btn tiny primary" data-act="continue">继续</button>
-        <button class="btn tiny ghost" data-act="del" title="丢弃">✕</button>
+        <button class="btn tiny primary btn-task-resume" data-task-id="${escapeHtml(task.id)}">继续</button>
+        <button class="btn tiny ghost btn-task-del" data-task-id="${escapeHtml(task.id)}" data-confirm-text="再点一次确认丢弃">丢弃</button>
       </div>
     `;
-    li.querySelector('[data-act="continue"]').addEventListener('click', async () => {
-      await Storage.setActiveTaskId(t.id);
-      currentTask = t;
-      enterStepsView(t);
-    });
-    li.querySelector('[data-act="del"]').addEventListener('click', async () => {
-      if (!confirm(`丢弃这个任务？\n「${t.goal}」`)) return;
-      await Storage.deleteTask(t.id);
-      refreshResumeCard();
-    });
-    list.appendChild(li);
+    list.appendChild(item);
   });
 }
-$('#btn-resume').addEventListener('click', async () => {
-  const t = (await Storage.getTasks()).find((x) => x.currentIndex < x.steps.length);
-  if (t) { await Storage.setActiveTaskId(t.id); currentTask = t; enterStepsView(t); }
-});
-$('#btn-discard').addEventListener('click', async () => {
-  if (!confirm('确定丢弃当前任务？（懒羊羊会有点小失望…）')) return;
-  const t = (await Storage.getTasks()).find((x) => x.currentIndex < x.steps.length);
-  if (t) await Storage.deleteTask(t.id);
-  refreshResumeCard();
-});
 
-// ---- v1 · plan view (二次编辑) ----
-let currentTask = null;
+async function doBreakdown(goal) {
+  const btn = $('#btn-breakdown');
+  const prevHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-emoji">🍃</span>懒羊羊正在拆解中…';
+  try {
+    const settings = await Storage.getSettings();
+    const result = await breakdownTask(goal, settings);
+    const task = {
+      id: `task_${Date.now()}_${Math.random().toString(16).slice(2, 6)}`,
+      goal,
+      steps: result.steps.map((stepItem) => ({ ...stepItem, done: false, skipped: false })),
+      currentIndex: 0,
+      createdAt: Date.now(),
+      source: result.source,
+      meta: result.meta || null,
+      warning: result.warning || null,
+    };
+    await Storage.setCurrentTask(task);
+    enterPlanView(task);
+  } catch (error) {
+    flash(`拆解失败：${error.message || error}`);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = prevHtml;
+  }
+}
 
-async function enterPlanView(task) {
+function renderPlanMeta(task) {
+  const box = $('#plan-meta');
+  box.innerHTML = '';
+  const settings = getSettingsCached();
+  const showUsage = settings?.showUsage !== false;
+  const sourceText = task.source === 'llm' ? '🧠 LLM 拆解' : (task.meta?.reusedFromCache ? '♻️ 相似任务复用' : '🍃 本地兜底');
+  const parts = [`<span class="meta-tag">${sourceText}</span>`];
+  if (task.warning) parts.push(`<span class="meta-warn" title="${escapeHtml(task.warning)}">⚠ LLM 失败，已 fallback</span>`);
+  if (task.meta?.mergedIntents?.length) parts.push(`<span class="meta-tag">${task.meta.mergedIntents.join(' + ')}</span>`);
+  if (showUsage && task.meta?.elapsedMs) parts.push(`<span class="meta-tag">${task.meta.elapsedMs} ms</span>`);
+  if (showUsage && task.meta?.model) parts.push(`<span class="meta-tag">${escapeHtml(task.meta.model)}</span>`);
+  if (showUsage && task.meta?.usage) {
+    const usage = task.meta.usage;
+    parts.push(`<span class="meta-tag">↓${usage.prompt_tokens || '?'} / ↑${usage.completion_tokens || '?'} tok</span>`);
+  }
+  box.innerHTML = parts.join(' ');
+}
+
+function enterPlanView(task) {
   currentTask = task;
   showView('plan');
   $('#plan-goal').textContent = task.goal;
@@ -157,39 +295,25 @@ async function enterPlanView(task) {
   renderPlanList();
 }
 
-function renderPlanMeta(task) {
-  const box = $('#plan-meta'); box.innerHTML = '';
-  const settings = getSettingsCached();
-  const showUsage = settings?.showUsage !== false;
-  const src = task.source === 'llm' ? '🧠 LLM 拆解' : '🍃 本地兜底';
-  const parts = [`<span class="meta-tag">${src}</span>`];
-  if (task.warning) parts.push(`<span class="meta-warn" title="${escapeHtml(task.warning)}">⚠ LLM 失败，已 fallback</span>`);
-  if (showUsage && task.meta) {
-    if (task.meta.elapsedMs) parts.push(`<span class="meta-tag">${task.meta.elapsedMs} ms</span>`);
-    if (task.meta.model) parts.push(`<span class="meta-tag">${escapeHtml(task.meta.model)}</span>`);
-    if (task.meta.usage) {
-      const u = task.meta.usage;
-      parts.push(`<span class="meta-tag">↓${u.prompt_tokens || '?'} / ↑${u.completion_tokens || '?'} tok</span>`);
-    }
-  }
-  box.innerHTML = parts.join(' ');
+function persistCurrentTask() {
+  if (!currentTask) return Promise.resolve();
+  return Storage.setCurrentTask(currentTask);
 }
 
 function renderPlanList() {
-  const list = $('#plan-list'); list.innerHTML = '';
-  currentTask.steps.forEach((s, i) => {
-    const li = document.createElement('li');
-    li.className = 'plan-item';
-    li.dataset.idx = String(i);
-    li.innerHTML = `
+  if (!currentTask) return;
+  const list = $('#plan-list');
+  list.innerHTML = '';
+  currentTask.steps.forEach((stepItem, index) => {
+    const item = document.createElement('li');
+    item.className = 'plan-item';
+    item.dataset.idx = String(index);
+    item.innerHTML = `
       <div class="plan-item-body">
-        <input class="plan-title" data-field="title" value="${escapeHtml(s.title)}" />
-        <input class="plan-detail" data-field="detail" placeholder="详细说明（可选）" value="${escapeHtml(s.detail || '')}" />
+        <input class="plan-title" data-field="title" value="${escapeHtml(stepItem.title)}" />
+        <input class="plan-detail" data-field="detail" placeholder="详细说明（可选）" value="${escapeHtml(stepItem.detail || '')}" />
         <div class="plan-item-foot">
-          <label class="plan-est">
-            ~
-            <input class="plan-est-input" data-field="estMinutes" type="number" min="1" max="60" value="${s.estMinutes || 3}" /> 分钟
-          </label>
+          <label class="plan-est">~ <input class="plan-est-input" data-field="estMinutes" type="number" min="1" max="60" value="${stepItem.estMinutes || 3}" /> 分钟</label>
           <div class="plan-item-actions">
             <button class="plan-btn" data-act="up" title="上移">↑</button>
             <button class="plan-btn" data-act="down" title="下移">↓</button>
@@ -198,209 +322,94 @@ function renderPlanList() {
         </div>
       </div>
     `;
-    list.appendChild(li);
+    list.appendChild(item);
   });
 
-  // bind edits
-  list.querySelectorAll('input').forEach((inp) => {
-    inp.addEventListener('change', () => {
-      const li = inp.closest('.plan-item');
-      const idx = Number(li.dataset.idx);
-      const field = inp.dataset.field;
-      const val = field === 'estMinutes' ? Math.max(1, Number(inp.value) || 3) : inp.value;
-      currentTask.steps[idx][field] = val;
-      Storage.setCurrentTask(currentTask);
+  list.querySelectorAll('input').forEach((input) => {
+    input.addEventListener('change', async () => {
+      const item = input.closest('.plan-item');
+      const index = Number(item.dataset.idx);
+      const field = input.dataset.field;
+      const value = field === 'estMinutes' ? Math.max(1, Number(input.value) || 3) : input.value.trim();
+      currentTask.steps[index][field] = value;
+      await persistCurrentTask();
     });
   });
-  list.querySelectorAll('.plan-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const li = btn.closest('.plan-item');
-      const idx = Number(li.dataset.idx);
-      const act = btn.dataset.act;
-      if (act === 'del') {
-        if (currentTask.steps.length <= 1) return alert('至少要留一个步骤呀 🐑');
-        currentTask.steps.splice(idx, 1);
-      } else if (act === 'up' && idx > 0) {
-        const [s] = currentTask.steps.splice(idx, 1);
-        currentTask.steps.splice(idx - 1, 0, s);
-      } else if (act === 'down' && idx < currentTask.steps.length - 1) {
-        const [s] = currentTask.steps.splice(idx, 1);
-        currentTask.steps.splice(idx + 1, 0, s);
+
+  list.querySelectorAll('.plan-btn').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const item = button.closest('.plan-item');
+      const index = Number(item.dataset.idx);
+      const action = button.dataset.act;
+      if (action === 'del') {
+        if (currentTask.steps.length <= 1) {
+          flash('至少要留一个步骤呀 🐑');
+          return;
+        }
+        currentTask.steps.splice(index, 1);
+      } else if (action === 'up' && index > 0) {
+        const [removed] = currentTask.steps.splice(index, 1);
+        currentTask.steps.splice(index - 1, 0, removed);
+      } else if (action === 'down' && index < currentTask.steps.length - 1) {
+        const [removed] = currentTask.steps.splice(index, 1);
+        currentTask.steps.splice(index + 1, 0, removed);
       }
-      Storage.setCurrentTask(currentTask);
+      await persistCurrentTask();
       renderPlanList();
     });
   });
 }
 
-$('#btn-add-step').addEventListener('click', () => {
-  currentTask.steps.push({ title: '新步骤', detail: '', estMinutes: 3, done: false, skipped: false });
-  Storage.setCurrentTask(currentTask);
-  renderPlanList();
-});
-
-$('#btn-rebreakdown').addEventListener('click', async () => {
-  if (!currentTask) return;
-  if (!confirm('重新拆一遍？当前的编辑会被覆盖。')) return;
-  await doBreakdown(currentTask.goal);
-});
-
-$('#btn-back-input').addEventListener('click', () => {
-  showView('input'); refreshResumeCard();
-});
-
-$('#btn-start').addEventListener('click', () => {
-  if (!currentTask) return;
-  currentTask.currentIndex = 0;
-  Storage.setCurrentTask(currentTask);
-  enterStepsView(currentTask);
-});
-
-// ---- steps view ----
-async function enterStepsView(task) {
+function enterStepsView(task) {
   currentTask = task;
   showView('steps');
   $('#goal-text').textContent = task.goal;
+  $('#btn-step-discard').dataset.taskId = String(task.id);
+  $('#btn-quit').dataset.taskId = String(task.id);
   renderSteps();
 }
 
 async function renderSteps() {
   if (!currentTask) return;
-  const t = currentTask;
-  const total = t.steps.length;
-  const idx = Math.min(t.currentIndex, total - 1);
-  const step = t.steps[idx];
-
-  $('#step-index').textContent = String(idx + 1);
-  $('#step-total').textContent = String(total);
-  const doneCount = t.steps.filter((s) => s.done).length;
+  const task = currentTask;
+  const total = task.steps.length;
+  const index = Math.min(task.currentIndex, total - 1);
+  const stepItem = task.steps[index];
   const stats = await Storage.getStats();
+  const doneCount = task.steps.filter((item) => item.done).length;
+
+  $('#step-index').textContent = String(index + 1);
+  $('#step-total').textContent = String(total);
   $('#lifetime-steps').textContent = String(stats.totalStepsCompleted);
   $('#progress-fill').style.width = `${Math.round((doneCount / total) * 100)}%`;
+  $('#step-title').textContent = stepItem.title;
+  $('#step-detail').textContent = stepItem.detail || '就这么点事儿，交给你啦！';
+  $('#step-est').textContent = `~ ${stepItem.estMinutes || 3} 分钟`;
+  $('#mascot-say').textContent = `“${MASCOT_LINES[index % MASCOT_LINES.length]}”`;
 
-  $('#step-title').textContent = step.title;
-  $('#step-detail').textContent = step.detail || '就这么点事儿，交给你啦！';
-  $('#step-est').textContent = `~ ${step.estMinutes || 3} 分钟`;
-
-  const MASCOT = ['"简单到不能再简单啦，来嘛来嘛～"','"完成这一小步，就能马上再偷懒一下下！"','"就当帮懒羊羊一个忙好吗～"','"这一步，闭着眼睛都能做完！"','"3、2、1，开动啦！"'];
-  $('#mascot-say').textContent = MASCOT[idx % MASCOT.length];
-
-  const list = $('#steps-list'); list.innerHTML = '';
-  t.steps.forEach((s, i) => {
+  const list = $('#steps-list');
+  list.innerHTML = '';
+  task.steps.forEach((item, idx) => {
     const li = document.createElement('li');
-    li.textContent = s.title + (s.skipped ? '（已跳过）' : '');
-    if (i === idx) li.classList.add('current');
-    if (s.done || s.skipped) li.classList.add('done');
+    li.textContent = item.title + (item.skipped ? '（已跳过）' : '');
+    if (idx === index) li.classList.add('current');
+    if (item.done || item.skipped) li.classList.add('done');
     list.appendChild(li);
   });
 
   const card = $('#step-card');
-  card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
+  card.style.animation = 'none';
+  void card.offsetWidth;
+  card.style.animation = '';
 
-  // v0.3.1: 刷新步骤倒计时的分钟数显示 + 可选自动开始
-  if (typeof renderStimer === 'function') renderStimer(0, stimer.snapshot());
+  renderStimer(0, stimer.snapshot());
   const settings = getSettingsCached();
   if (settings?.stepTimer?.autoStart && stimer.snapshot().phase === 'idle') {
     stimer.start(getCurrentStepMinutes());
   }
 }
 
-$('#btn-done').addEventListener('click', async () => {
-  if (!currentTask) return;
-  const t = currentTask;
-  const step = t.steps[t.currentIndex];
-  // v0.3.1: 记录实际专注毫秒数并计算动态奖励
-  const timerSnap = stimer.snapshot();
-  const actualMs = timerSnap.elapsedActiveMs || 0;
-  const reward = calcStepReward({ estMinutes: step.estMinutes || 3, actualMs, skipped: false });
-  step.done = true;
-  step.actualMs = actualMs;
-  step.rewardTag = reward.tag;
-  await Storage.setCurrentTask(t);
-  await Storage.addStepCompleted({ food: reward.food, exp: reward.exp });
-  stimer.stop();
-  // 反馈养料 + tag
-  const tagText = reward.tag === 'on-time' ? '⚡ 效率大王 +50%'
-    : reward.tag === 'over-time' ? '🐢 慢工出细活'
-    : reward.tag === 'no-timer' ? '📝 未计时'
-    : '';
-  flash(`+${reward.food} 养料 ${tagText}`);
-  celebrateStep({ sound: (await Storage.getSettings()).soundEnabled !== false });
-  setTimeout(async () => {
-    t.currentIndex += 1;
-    if (t.currentIndex >= t.steps.length) {
-      await Storage.setCurrentTask(t);
-      const bonus = calcTaskCompletionBonus(t);
-      await Storage.pushHistory({ id: t.id, goal: t.goal, stepsCount: t.steps.length, completedAt: Date.now(), taskBonus: bonus });
-      await Storage.addTaskCompleted(bonus);
-      await Storage.clearCurrentTask();
-      enterDoneView({ bonus });
-    } else {
-      await Storage.setCurrentTask(t);
-      renderSteps();
-    }
-  }, 650);
-});
-
-$('#btn-skip').addEventListener('click', async () => {
-  if (!currentTask) return;
-  const t = currentTask;
-  t.steps[t.currentIndex].skipped = true;
-  stimer.stop();
-  t.currentIndex += 1;
-  if (t.currentIndex >= t.steps.length) {
-    await Storage.setCurrentTask(t);
-    await Storage.pushHistory({ id: t.id, goal: t.goal, stepsCount: t.steps.length, completedAt: Date.now(), partial: true });
-    await Storage.clearCurrentTask();
-    enterDoneView({ partial: true });
-    return;
-  }
-  await Storage.setCurrentTask(t);
-  renderSteps();
-});
-
-// v1 refine
-$('#btn-refine').addEventListener('click', async () => {
-  if (!currentTask) return;
-  const t = currentTask;
-  const idx = t.currentIndex;
-  const step = t.steps[idx];
-  const btn = $('#btn-refine');
-  const prev = btn.innerHTML; btn.disabled = true; btn.textContent = '🍃 拆解中…';
-  try {
-    const settings = await Storage.getSettings();
-    const res = await refineStep(t.goal, step, t.steps, settings);
-    const subs = res.steps.map((s) => ({ ...s, done: false, skipped: false, _refined: true }));
-    // 用子步骤替换当前步骤
-    t.steps.splice(idx, 1, ...subs);
-    await Storage.setCurrentTask(t);
-    renderSteps();
-    // small toast
-    const src = res.source === 'llm' ? 'LLM' : '本地';
-    flash(`✨ 已把这一步再拆成 ${subs.length} 小步（${src}）`);
-  } catch (e) {
-    alert('细化失败：' + (e.message || e));
-  } finally {
-    btn.disabled = false; btn.innerHTML = prev;
-  }
-});
-
-$('#btn-quit').addEventListener('click', async () => {
-  if (!confirm('确定放弃当前任务吗？下次再打开时任务就不见啦。')) return;
-  await Storage.clearCurrentTask();
-  currentTask = null;
-  stimer.stop();
-  showView('input'); refreshResumeCard();
-});
-
-$('#btn-back-tasks')?.addEventListener('click', () => {
-  stimer.stop();
-  showView('input');
-  refreshResumeCard();
-});
-
-// ---- done view ----
-async function enterDoneView(opts = {}) {
+async function enterDoneView(options = {}) {
   showView('done');
   const stats = await Storage.getStats();
   $('#stat-steps').textContent = String(stats.totalStepsCompleted);
@@ -408,155 +417,148 @@ async function enterDoneView(opts = {}) {
   $('#stat-food').textContent = String(stats.foodStock);
   $('#pet-food-2').textContent = String(stats.foodStock);
   $('#pet-lv').textContent = String(stats.petLevel);
-  if (opts.partial) {
+  if (options.partial) {
     $('#done-sub').textContent = '有几步跳过了没关系，能开始就是胜利～';
-  } else if (opts.bonus) {
-    $('#done-sub').textContent = `你已经比 99% 的懒羊羊更勤快啦～ 🎁 完成奖励 +${opts.bonus.food} 养料 / +${opts.bonus.exp} 经验`;
+  } else if (options.bonus) {
+    $('#done-sub').textContent = `你已经比 99% 的懒羊羊更勤快啦～ 🎁 完成奖励 +${options.bonus.food} 养料 / +${options.bonus.exp} 经验`;
+  } else {
+    $('#done-sub').textContent = '你已经比 99% 的懒羊羊更勤快啦～';
   }
   celebrateAll({ sound: (await Storage.getSettings()).soundEnabled !== false });
 }
 
-$('#btn-new-task').addEventListener('click', () => { $('#task-input').value = ''; showView('input'); refreshResumeCard(); });
-
-// ---- helpers ----
-function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
-
-let settingsCache = null;
-function getSettingsCached() { return settingsCache; }
-async function primeSettingsCache() { settingsCache = await Storage.getSettings(); }
-
-function flash(msg) {
-  const t = document.createElement('div');
-  t.className = 'lsk-toast lsk-toast-show';
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => { t.classList.remove('lsk-toast-show'); setTimeout(() => t.remove(), 300); }, 1800);
+function petLabel(state, petId) {
+  if (petId === 'custom') return state.customName || '我的宠物';
+  return Pets.petTypeById(petId).name;
 }
 
-(async function boot() {
-  await primeSettingsCache();
-  await refreshLLMHint();
-  await refreshResumeCard();
-  showView('input');
-  const cur = await Storage.getCurrentTask();
-  if (cur && cur.currentIndex < cur.steps.length && urlParams.get('full') === '1') enterStepsView(cur);
-})();
-
-// ================= v2 · Option 1 · 宠物系统骨架 =================
-import { Pets, PET_TYPES, MOOD_META, computeMood } from '../lib/pets.js';
-
-async function enterPetView() {
-  showView('pet');
-  await renderPet();
+function renderPetHistory(state) {
+  const list = $('#pet-history-list');
+  const history = [...(state.feedLog || [])].slice(-10).reverse();
+  if (history.length === 0) {
+    list.innerHTML = '<li class="pet-history-item"><span>还没有喂养记录</span><span>去点一下喂养吧～</span></li>';
+    return;
+  }
+  list.innerHTML = history.map((item) => {
+    const emoji = Pets.petTypeById(item.petId).emoji || '🐑';
+    return `<li class="pet-history-item"><span>${new Date(item.ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })} · ${emoji} +${item.amount}</span><span>${escapeHtml(petLabel(state, item.petId))}</span></li>`;
+  }).join('');
 }
 
 async function renderPet() {
-  const st = await Pets.getState();
+  const state = await Pets.getState();
   const stats = await Storage.getStats();
-  const type = Pets.petTypeById(st.activeId);
-
-  // avatar
-  const avatar = $('#pet-avatar');
-  const mood = computeMood(st, stats);
+  const type = Pets.petTypeById(state.activeId);
+  const mood = computeMood(state, stats);
   const meta = MOOD_META[mood] || MOOD_META.normal;
-  // 心情动画：清空旧的 mood-* class 再赋新的
+  const avatar = $('#pet-avatar');
   avatar.className = 'pet-avatar mood-' + meta.anim;
-  const cartoonFilter = (st.cartoonize !== false)
-    ? 'contrast(1.15) saturate(1.35) brightness(1.02)'
-    : 'none';
-  if (st.activeId === 'custom' && st.customImageDataUrl) {
-    avatar.innerHTML = `<img src="${st.customImageDataUrl}" alt="custom pet" style="filter:${cartoonFilter}" />`;
-    $('#pet-name').textContent = st.customName || '我的宠物';
-    $('#pet-desc').textContent = (st.cartoonize !== false)
-      ? '你上传的专属形象（已自动卡通化 ✨）'
-      : '你上传的专属形象～ 一起加油！';
-  } else if (st.activeId === 'sheep') {
-    avatar.innerHTML = `<img src="../icons/icon-256.png" alt="sheep" />`;
+  const cartoonFilter = state.cartoonize !== false ? 'contrast(1.15) saturate(1.35) brightness(1.02)' : 'none';
+  if (state.activeId === 'custom' && state.customImageDataUrl) {
+    avatar.innerHTML = `<img src="${state.customImageDataUrl}" alt="custom pet" style="filter:${cartoonFilter}" />`;
+    $('#pet-name').textContent = state.customName || '我的宠物';
+    $('#pet-desc').textContent = state.cartoonize !== false ? '你上传的专属形象（已自动卡通化 ✨）' : '你上传的专属形象～ 一起加油！';
+  } else if (state.activeId === 'sheep') {
+    avatar.innerHTML = '<img src="../icons/icon-256.png" alt="sheep" />';
     $('#pet-name').textContent = type.name;
     $('#pet-desc').textContent = type.desc;
   } else {
-    avatar.innerHTML = type.emoji;
+    avatar.textContent = type.emoji;
     $('#pet-name').textContent = type.name;
     $('#pet-desc').textContent = type.desc;
   }
   $('#pet-mood').textContent = `${meta.emoji} ${meta.say}`;
-
+  $('#pet-total-all').textContent = String(state.totalFedAll || 0);
+  $('#pet-total-today').textContent = String(todayFeedTotal(state.feedLog || []));
+  $('#pet-streak').textContent = String(state.feedStreakDays || 0);
   $('#pet-stat-lv').textContent = String(stats.petLevel);
   $('#pet-stat-food').textContent = String(stats.foodStock);
-  $('#pet-stat-fed').textContent = String(st.timesFed || 0);
+  $('#pet-stat-fed').textContent = String(state.totalFedAll || state.timesFed || 0);
+  renderPetHistory(state);
 
-  // picker
   const picker = $('#pet-picker');
   picker.innerHTML = '';
-  PET_TYPES.forEach((p) => {
-    const unlocked = st.unlocked.includes(p.id) || p.id === 'sheep';
+  PET_TYPES.forEach((pet) => {
+    const unlocked = state.unlocked.includes(pet.id) || pet.id === 'sheep';
+    const affinity = state.totalFedByPet?.[pet.id] || 0;
+    const progress = affinityProgress(affinity);
     const slot = document.createElement('div');
-    slot.className = 'pet-slot' + (st.activeId === p.id ? ' active' : '') + (!unlocked ? ' locked' : '');
-    let emojiCell = p.emoji;
-    if (p.id === 'sheep') emojiCell = `<img src="../icons/icon-48.png" alt="sheep">`;
-    if (p.id === 'custom' && st.customImageDataUrl) emojiCell = `<img src="${st.customImageDataUrl}" alt="custom">`;
+    slot.className = 'pet-slot' + (sameId(state.activeId, pet.id) ? ' active' : '') + (!unlocked ? ' locked' : '');
+    let emojiCell = pet.emoji;
+    if (pet.id === 'sheep') emojiCell = '<img src="../icons/icon-48.png" alt="sheep">';
+    if (pet.id === 'custom' && state.customImageDataUrl) emojiCell = `<img src="${state.customImageDataUrl}" alt="custom">`;
     slot.innerHTML = `
-      <div class="pet-slot-emoji">${emojiCell}</div>
-      <div class="pet-slot-name">${p.name}</div>
-      ${unlocked ? '' : '<div class="pet-slot-lock">🔒 待解锁</div>'}
+      <div class="pet-slot-top">
+        <div class="pet-slot-emoji">${emojiCell}</div>
+        <div>
+          <div class="pet-slot-name">${escapeHtml(petLabel(state, pet.id))}</div>
+          ${unlocked ? '' : '<div class="pet-slot-lock">🔒 待解锁</div>'}
+        </div>
+      </div>
+      <div class="pet-slot-affinity">❤️ 亲密度 <b>${affinity}</b></div>
+      <div class="affinity-bar"><div class="affinity-bar-fill ${progress.tier}" style="width:${progress.percent}%"></div></div>
     `;
-    // v0.3.2: 移除长按逻辑，改为纯 click。
-    //  - 自定义槽且还没图 → 打开文件选择器
-    //  - 其它情况 → 直接切换为当前宠物
     slot.addEventListener('click', async () => {
-      if (p.id === 'custom' && !st.customImageDataUrl) {
+      if (pet.id === 'custom' && !state.customImageDataUrl) {
         $('#pet-upload').click();
         return;
       }
-      await Pets.setActive(p.id);
+      await Pets.setActive(pet.id);
       renderPet();
     });
     picker.appendChild(slot);
   });
 }
 
-$('#btn-pet')?.addEventListener('click', enterPetView);
-$('#btn-goto-pet')?.addEventListener('click', enterPetView);
-$('#btn-pet-back')?.addEventListener('click', () => showView('input'));
+function triggerFeedAnimation() {
+  const avatar = $('#pet-avatar');
+  const layer = $('#pet-heart-layer');
+  avatar.classList.remove('feed-pop');
+  void avatar.offsetWidth;
+  avatar.classList.add('feed-pop');
+  layer.innerHTML = '';
+  const offsets = [
+    ['-40px', '-68px'], ['-12px', '-84px'], ['18px', '-72px'], ['42px', '-58px'], ['-30px', '-48px'], ['22px', '-42px'],
+  ];
+  offsets.forEach(([dx, dy], index) => {
+    const heart = document.createElement('span');
+    heart.className = 'heart-particle';
+    heart.textContent = index % 2 === 0 ? '💛' : '❤️';
+    heart.style.setProperty('--dx', dx);
+    heart.style.setProperty('--dy', dy);
+    layer.appendChild(heart);
+  });
+  setTimeout(() => {
+    avatar.classList.remove('feed-pop');
+    layer.innerHTML = '';
+  }, 820);
+}
 
-$('#btn-feed')?.addEventListener('click', async () => {
-  const r = await Pets.feed(1);
-  if (!r.ok) { flash(r.reason); return; }
-  flash('喂了一口！🍼 宠物好开心');
-  renderPet();
-});
+function playFeedJingle() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AC();
+    const start = ctx.currentTime;
+    [659, 880, 988].forEach((freq, index) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = index === 1 ? 'triangle' : 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, start + index * 0.09);
+      gain.gain.exponentialRampToValueAtTime(0.18, start + index * 0.09 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + index * 0.09 + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start + index * 0.09);
+      osc.stop(start + index * 0.09 + 0.2);
+    });
+    setTimeout(() => ctx.close?.(), 1200);
+  } catch {}
+}
 
-$('#pet-upload')?.addEventListener('change', async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = async () => {
-    const dataUrl = reader.result;
-    const name = prompt('给你的宠物起个名字？', '我的宠物') || '我的宠物';
-    await Pets.setCustomImage(dataUrl, name);
-    flash('自定义形象已绑定 🎉');
-    renderPet();
-  };
-  reader.readAsDataURL(file);
-  e.target.value = '';
-});
-
-// v0.3.2: 显式按钮取代长按
-$('#btn-upload-custom')?.addEventListener('click', () => { $('#pet-upload').click(); });
-$('#btn-toggle-cartoon')?.addEventListener('click', async () => {
-  const st = await Pets.toggleCartoonize();
-  flash(st.cartoonize ? '✨ 已开启卡通化' : '已关闭卡通化');
-  renderPet();
-});
-
-// ================= v0.3.2 · 完成日历打卡图 =================
-import { buildHeatmap, summarize, todayKey } from '../lib/calendar.js';
-
-let calDays = 30;
-
-async function enterCalendarView() {
-  showView('calendar');
-  await renderCalendar(calDays);
+async function enterPetView() {
+  showView('pet');
+  await renderPet();
 }
 
 async function renderCalendar(days = 30) {
@@ -564,83 +566,226 @@ async function renderCalendar(days = 30) {
   const stats = await Storage.getStats();
   const dailyLog = stats.dailyLog || {};
   const cells = buildHeatmap(dailyLog, days);
-  const sum = summarize(dailyLog, days);
-
-  $('#cal-stat-tasks').textContent = String(sum.totalTasks);
-  $('#cal-stat-steps').textContent = String(sum.totalSteps);
-  $('#cal-stat-streak').textContent = String(sum.currentStreak);
-  $('#cal-stat-food').textContent = String(sum.totalFood);
+  const summary = summarize(dailyLog, days);
+  $('#cal-stat-tasks').textContent = String(summary.totalTasks);
+  $('#cal-stat-steps').textContent = String(summary.totalSteps);
+  $('#cal-stat-streak').textContent = String(summary.currentStreak);
+  $('#cal-stat-food').textContent = String(summary.totalFood);
   $('#cal-range-label').textContent = `近 ${days} 天`;
-
-  $('#btn-cal-30')?.classList.toggle('active', days === 30);
-  $('#btn-cal-90')?.classList.toggle('active', days === 90);
-
-  // 网格：7 行（按 weekday），列自动按周扩展（CSS grid-auto-flow: column）
+  $('#btn-cal-30').classList.toggle('active', days === 30);
+  $('#btn-cal-90').classList.toggle('active', days === 90);
   const grid = $('#cal-heatmap');
   grid.innerHTML = '';
-  // 先按周对齐：第一个 cell 之前用空占位补齐它所在的星期
   const firstWeekday = new Date(cells[0].date + 'T00:00:00').getDay();
-  for (let i = 0; i < firstWeekday; i++) {
+  for (let i = 0; i < firstWeekday; i += 1) {
     const pad = document.createElement('div');
     pad.className = 'cal-cell cal-cell-pad';
     grid.appendChild(pad);
   }
-  cells.forEach((c) => {
+  cells.forEach((cell) => {
     const div = document.createElement('div');
     div.className = 'cal-cell';
-    div.dataset.level = String(c.level);
-    div.title = `${c.date} · ${c.steps} 步 / ${c.tasks} 任务 / ${c.food} 养料`;
+    div.dataset.level = String(cell.level);
+    div.title = `${cell.date} · ${cell.steps} 步 / ${cell.tasks} 任务 / ${cell.food} 养料`;
     grid.appendChild(div);
   });
 }
 
-$('#btn-calendar')?.addEventListener('click', enterCalendarView);
-$('#btn-cal-back')?.addEventListener('click', () => showView('input'));
-$('#btn-cal-30')?.addEventListener('click', () => renderCalendar(30));
-$('#btn-cal-90')?.addEventListener('click', () => renderCalendar(90));
+async function enterCalendarView() {
+  showView('calendar');
+  await renderCalendar(calDays);
+}
 
-
-// ================= v0.3.1 · 按步骤倒计时 =================
-const stimer = createCountdown({
-  onTick: (leftMs, state) => renderStimer(leftMs, state),
-  onEnd: (state) => {
-    try {
-      const cfg = getSettingsCached()?.stepTimer;
-      if (cfg?.endSound !== false) beepDone();
-    } catch {}
-    flash('⏰ 时间到！可以点「完成」或「＋1 分钟」再来一会儿～');
-    if (getSettingsCached()?.stepTimer?.autoAddOnEnd) {
-      stimer.addMinutes(1);
-      stimer.resume();
+function mergeTasks(localTasks = [], incomingTasks = []) {
+  const map = new Map();
+  [...localTasks, ...incomingTasks].forEach((task) => {
+    if (!task?.id) return;
+    const prev = map.get(String(task.id));
+    const prevDone = prev?.steps?.filter((item) => item.done || item.skipped).length || 0;
+    const nextDone = task?.steps?.filter((item) => item.done || item.skipped).length || 0;
+    if (!prev || nextDone > prevDone || Number(task.currentIndex || 0) > Number(prev.currentIndex || 0) || Number(task.createdAt || 0) >= Number(prev.createdAt || 0)) {
+      map.set(String(task.id), task);
     }
-  },
-});
+  });
+  return Array.from(map.values()).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+}
+
+function mergeHistory(localHistory = [], incomingHistory = []) {
+  const map = new Map();
+  [...localHistory, ...incomingHistory].forEach((item) => {
+    if (!item) return;
+    const key = `${item.id || 'hist'}:${item.completedAt || item.ts || item.createdAt || Math.random()}`;
+    if (!map.has(key)) map.set(key, item);
+  });
+  return Array.from(map.values()).sort((a, b) => Number(b.completedAt || b.ts || 0) - Number(a.completedAt || a.ts || 0)).slice(0, 80);
+}
+
+function mergeDailyLog(localLog = {}, incomingLog = {}) {
+  const merged = {};
+  new Set([...Object.keys(localLog || {}), ...Object.keys(incomingLog || {})]).forEach((date) => {
+    merged[date] = {
+      steps: Math.max(localLog?.[date]?.steps || 0, incomingLog?.[date]?.steps || 0),
+      tasks: Math.max(localLog?.[date]?.tasks || 0, incomingLog?.[date]?.tasks || 0),
+      food: Math.max(localLog?.[date]?.food || 0, incomingLog?.[date]?.food || 0),
+    };
+  });
+  return merged;
+}
+
+function mergeRecentBreakdowns(localList = [], incomingList = []) {
+  const map = new Map();
+  [...incomingList, ...localList].forEach((item) => {
+    if (!item?.normalized) return;
+    if (!map.has(item.normalized)) map.set(item.normalized, item);
+  });
+  return Array.from(map.values()).slice(0, 40);
+}
+
+function downloadJson(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function exportBackup() {
+  const profile = await ensureProfile();
+  const backup = await Storage.getBackupData();
+  const pets = await Pets.getState();
+  const activeTaskId = await Storage.getActiveTaskId();
+  const payload = {
+    version: APP_VERSION,
+    exportedAt: Date.now(),
+    userId: profile.userId,
+    profile,
+    activeTaskId,
+    ...backup,
+    pets,
+  };
+  const datePart = new Date().toISOString().slice(0, 10);
+  downloadJson(payload, `lazy-sheep-king-backup-${profile.userId}-${datePart}.json`);
+  flash('备份已导出');
+}
+
+async function importBackup(file) {
+  const text = await file.text();
+  const payload = JSON.parse(text);
+  if (!payload || !payload.version) throw new Error('不是有效的备份文件');
+  const currentProfile = await ensureProfile();
+  const local = await Storage.getBackupData();
+  const localPets = await Pets.getState();
+  const mismatch = payload.userId && currentProfile.userId && payload.userId !== currentProfile.userId;
+  if (mismatch) {
+    flash('⚠️ 备份 userId 与当前不一致，将保留当前身份，仅合并数据', { big: true, duration: 2600 });
+  }
+
+  const mergedTasks = mergeTasks(local.tasks, payload.tasks || []);
+  const mergedHistory = mergeHistory(local.history, payload.history || []);
+  const incomingStats = payload.stats || {};
+  const mergedStats = {
+    ...local.stats,
+    ...incomingStats,
+    totalTasksCompleted: Math.max(local.stats.totalTasksCompleted || 0, incomingStats.totalTasksCompleted || 0),
+    totalStepsCompleted: Math.max(local.stats.totalStepsCompleted || 0, incomingStats.totalStepsCompleted || 0),
+    foodStock: Math.max(local.stats.foodStock || 0, incomingStats.foodStock || 0),
+    petLevel: Math.max(local.stats.petLevel || 1, incomingStats.petLevel || 1),
+    petExp: Math.max(local.stats.petExp || 0, incomingStats.petExp || 0),
+    lastActiveAt: Math.max(local.stats.lastActiveAt || 0, incomingStats.lastActiveAt || 0),
+    dailyLog: mergeDailyLog(local.stats.dailyLog || {}, incomingStats.dailyLog || {}),
+  };
+  const mergedRecent = mergeRecentBreakdowns(local.recentBreakdowns, payload.recentBreakdowns || []);
+
+  await Storage.setSettings(payload.settings || local.settings);
+  await Storage.setTasks(mergedTasks);
+  await Storage.setHistory(mergedHistory);
+  await Storage.setStats(mergedStats);
+  await Storage.setRecentBreakdowns(mergedRecent);
+  await Pets.replaceState(payload.pets || localPets);
+
+  if (!mismatch && payload.profile) {
+    await Storage.setProfile(payload.profile);
+  } else {
+    await Storage.setProfile(currentProfile);
+  }
+
+  const candidateActiveId = mergedTasks.some((task) => sameId(task.id, payload.activeTaskId))
+    ? payload.activeTaskId
+    : (mergedTasks.find((task) => task.currentIndex < task.steps.length)?.id || null);
+  await Storage.setActiveTaskId(candidateActiveId);
+
+  if (typeof payload.syncEnabled === 'boolean') {
+    await Storage.setSyncEnabled(payload.syncEnabled && isSyncSupported());
+  }
+
+  await primeSettingsCache();
+  await refreshLLMHint();
+  await refreshResumeCard();
+  await renderMyView();
+  currentTask = candidateActiveId ? mergedTasks.find((task) => sameId(task.id, candidateActiveId)) || null : null;
+  flash(mismatch ? '已导入备份（保留当前用户 ID）' : '备份导入完成');
+}
+
+async function renderMyView() {
+  const profile = await ensureProfile();
+  const syncEnabled = await Storage.getSyncEnabled();
+  $('#my-user-id').textContent = profile.userId || '—';
+  $('#my-display-name').value = profile.displayName || '';
+  $('#my-device-label').textContent = profile.deviceLabel || 'Web';
+  $('#my-created-at').textContent = formatDate(profile.createdAt);
+  const supportText = $('#sync-support-text');
+  const syncButton = $('#btn-sync-toggle');
+  if (isSyncSupported()) {
+    supportText.textContent = syncEnabled ? '当前已开启：会同步 profile / tasks / settings / 精简 stats。' : '可在支持 chrome.storage.sync 的环境下启用。';
+    syncButton.disabled = false;
+    syncButton.textContent = syncEnabled ? '☁️ 已开启跨设备同步（点击关闭）' : '🔄 启用跨设备同步（Chrome 账号）';
+  } else {
+    supportText.textContent = '当前环境不支持 chrome.storage.sync（Web 试玩/部分浏览器会降级为本地模式）。';
+    syncButton.disabled = true;
+    syncButton.textContent = '当前环境不支持';
+  }
+  await refreshUserBadge();
+}
+
+async function enterMyView() {
+  showView('my');
+  await renderMyView();
+}
+
+function getCurrentStepMinutes() {
+  const stepItem = currentTask?.steps?.[currentTask?.currentIndex];
+  return Math.max(1, Math.round(stepItem?.estMinutes || 3));
+}
 
 function beepDone() {
   try {
     const AC = window.AudioContext || window.webkitAudioContext;
     const ctx = new AC();
-    const t = ctx.currentTime;
-    [880, 1175, 1568].forEach((f, i) => {
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.type = 'triangle'; o.frequency.value = f;
-      g.gain.setValueAtTime(0.0001, t + i * 0.18);
-      g.gain.exponentialRampToValueAtTime(0.28, t + i * 0.18 + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.18 + 0.28);
-      o.connect(g); g.connect(ctx.destination);
-      o.start(t + i * 0.18); o.stop(t + i * 0.18 + 0.3);
+    const time = ctx.currentTime;
+    [880, 1175, 1568].forEach((freq, index) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, time + index * 0.18);
+      gain.gain.exponentialRampToValueAtTime(0.28, time + index * 0.18 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + index * 0.18 + 0.28);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(time + index * 0.18);
+      osc.stop(time + index * 0.18 + 0.3);
     });
     setTimeout(() => ctx.close?.(), 1500);
   } catch {}
 }
 
-function getCurrentStepMinutes() {
-  const step = currentTask?.steps?.[currentTask?.currentIndex];
-  return Math.max(1, Math.round(step?.estMinutes || 3));
-}
-
 function renderStimer(leftMs, state) {
-  const card = $('#stimer-card'); if (!card) return;
+  const card = $('#stimer-card');
+  if (!card) return;
   card.dataset.phase = state.phase;
   const mins = getCurrentStepMinutes();
   $('#stimer-plan').textContent = String(mins);
@@ -673,11 +818,305 @@ function renderStimer(leftMs, state) {
   stopBtn.classList.toggle('hidden', state.phase === 'idle');
 }
 
-$('#btn-stimer-start')?.addEventListener('click', () => stimer.start(getCurrentStepMinutes()));
-$('#btn-stimer-pause')?.addEventListener('click', () => stimer.pause());
-$('#btn-stimer-resume')?.addEventListener('click', () => stimer.resume());
-$('#btn-stimer-add')?.addEventListener('click', () => stimer.addMinutes(1));
-$('#btn-stimer-stop')?.addEventListener('click', () => stimer.stop());
+const stimer = createCountdown({
+  onTick: (leftMs, state) => renderStimer(leftMs, state),
+  onEnd: () => {
+    try {
+      const cfg = getSettingsCached()?.stepTimer;
+      if (cfg?.endSound !== false) beepDone();
+    } catch {}
+    flash('⏰ 时间到！可以点「完成」或「＋1 分钟」再来一会儿～');
+    if (getSettingsCached()?.stepTimer?.autoAddOnEnd) {
+      stimer.addMinutes(1);
+      stimer.resume();
+    }
+  },
+});
 
-// 初次渲染
+$('#btn-open-full').addEventListener('click', () => {
+  if (typeof chrome !== 'undefined' && chrome?.tabs) chrome.tabs.create({ url: chrome.runtime.getURL('popup/popup.html?full=1') });
+  else window.open(location.pathname + '?full=1', '_blank');
+});
+$('#btn-options').addEventListener('click', openOptions);
+$('#btn-my').addEventListener('click', enterMyView);
+$('#btn-pet').addEventListener('click', enterPetView);
+$('#btn-calendar').addEventListener('click', enterCalendarView);
+$('#footer-home').addEventListener('click', showHome);
+$('#btn-my-back').addEventListener('click', showHome);
+$('#btn-pet-back').addEventListener('click', showHome);
+$('#btn-cal-back').addEventListener('click', showHome);
+$('#btn-open-options-from-my').addEventListener('click', openOptions);
+$('#btn-goto-pet').addEventListener('click', enterPetView);
+
+$('#user-badge').addEventListener('click', async () => {
+  const profile = await ensureProfile();
+  const ok = await copyText(profile.userId);
+  flash(ok ? `已复制用户 ID：${shortUserId(profile.userId)}` : '复制失败，请手动长按复制');
+});
+
+$$('.chip').forEach((chip) => chip.addEventListener('click', () => {
+  $('#task-input').value = chip.dataset.example;
+  $('#task-input').focus();
+}));
+
+$('#btn-breakdown').addEventListener('click', async () => {
+  const goal = $('#task-input').value.trim();
+  if (!goal) {
+    $('#task-input').focus();
+    $('#task-input').style.borderColor = '#b0562c';
+    setTimeout(() => { $('#task-input').style.borderColor = ''; }, 800);
+    return;
+  }
+  await doBreakdown(goal);
+});
+
+$('#btn-resume').addEventListener('click', async () => {
+  const taskId = $('#btn-resume').dataset.taskId;
+  if (taskId) await openTaskById(taskId);
+});
+
+$('#btn-discard').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  const taskId = button.dataset.taskId;
+  if (!taskId) return;
+  if (!requiresSecondClick(button)) return;
+  resetDangerArming();
+  await discardTaskById(taskId);
+});
+
+$('#tasks-list').addEventListener('click', async (event) => {
+  const resumeBtn = event.target.closest('.btn-task-resume');
+  if (resumeBtn) {
+    await openTaskById(resumeBtn.dataset.taskId);
+    return;
+  }
+  const deleteBtn = event.target.closest('.btn-task-del');
+  if (!deleteBtn) return;
+  if (!requiresSecondClick(deleteBtn)) return;
+  resetDangerArming();
+  await discardTaskById(deleteBtn.dataset.taskId);
+});
+
+$('#btn-add-step').addEventListener('click', async () => {
+  if (!currentTask) return;
+  currentTask.steps.push({ title: '新步骤', detail: '', tips: '', estMinutes: 3, done: false, skipped: false });
+  await persistCurrentTask();
+  renderPlanList();
+});
+
+$('#btn-rebreakdown').addEventListener('click', async () => {
+  if (!currentTask) return;
+  await doBreakdown(currentTask.goal);
+});
+
+$('#btn-back-input').addEventListener('click', showHome);
+$('#btn-start').addEventListener('click', async () => {
+  if (!currentTask) return;
+  currentTask.currentIndex = 0;
+  await persistCurrentTask();
+  enterStepsView(currentTask);
+});
+
+$('#btn-done').addEventListener('click', async () => {
+  if (!currentTask) return;
+  const task = currentTask;
+  const stepItem = task.steps[task.currentIndex];
+  const timerSnap = stimer.snapshot();
+  const actualMs = timerSnap.elapsedActiveMs || 0;
+  const reward = calcStepReward({ estMinutes: stepItem.estMinutes || 3, actualMs, skipped: false });
+  stepItem.done = true;
+  stepItem.actualMs = actualMs;
+  stepItem.rewardTag = reward.tag;
+  await persistCurrentTask();
+  await Storage.addStepCompleted({ food: reward.food, exp: reward.exp });
+  stimer.stop();
+  const tagText = reward.tag === 'on-time' ? '⚡ 效率大王 +50%' : reward.tag === 'over-time' ? '🐢 慢工出细活' : reward.tag === 'no-timer' ? '📝 未计时' : '';
+  flash(`+${reward.food} 养料 ${tagText}`.trim());
+  celebrateStep({ sound: (await Storage.getSettings()).soundEnabled !== false });
+
+  setTimeout(async () => {
+    task.currentIndex += 1;
+    if (task.currentIndex >= task.steps.length) {
+      await persistCurrentTask();
+      const bonus = calcTaskCompletionBonus(task);
+      await Storage.pushHistory({ id: task.id, goal: task.goal, stepsCount: task.steps.length, completedAt: Date.now(), taskBonus: bonus });
+      await Storage.addTaskCompleted(bonus);
+      if (task.source !== 'llm') {
+        await rememberBreakdown(task.goal, task.steps);
+      }
+      await Storage.clearCurrentTask();
+      currentTask = null;
+      await enterDoneView({ bonus });
+      await refreshResumeCard();
+    } else {
+      await persistCurrentTask();
+      renderSteps();
+    }
+  }, 650);
+});
+
+$('#btn-skip').addEventListener('click', async () => {
+  if (!currentTask) return;
+  const task = currentTask;
+  task.steps[task.currentIndex].skipped = true;
+  stimer.stop();
+  task.currentIndex += 1;
+  if (task.currentIndex >= task.steps.length) {
+    await persistCurrentTask();
+    await Storage.pushHistory({ id: task.id, goal: task.goal, stepsCount: task.steps.length, completedAt: Date.now(), partial: true });
+    await Storage.clearCurrentTask();
+    currentTask = null;
+    await enterDoneView({ partial: true });
+    await refreshResumeCard();
+    return;
+  }
+  await persistCurrentTask();
+  renderSteps();
+});
+
+$('#btn-refine').addEventListener('click', async () => {
+  if (!currentTask) return;
+  const task = currentTask;
+  const index = task.currentIndex;
+  const stepItem = task.steps[index];
+  const button = $('#btn-refine');
+  const prevText = button.innerHTML;
+  button.disabled = true;
+  button.textContent = '🍃 拆解中…';
+  try {
+    const settings = await Storage.getSettings();
+    const result = await refineStep(task.goal, stepItem, task.steps, settings);
+    const subs = result.steps.map((item) => ({ ...item, done: false, skipped: false, _refined: true }));
+    task.steps.splice(index, 1, ...subs);
+    await persistCurrentTask();
+    renderSteps();
+    flash(`✨ 已把这一步再拆成 ${subs.length} 小步（${result.source === 'llm' ? 'LLM' : '本地'}）`);
+  } catch (error) {
+    flash(`细化失败：${error.message || error}`);
+  } finally {
+    button.disabled = false;
+    button.innerHTML = prevText;
+  }
+});
+
+async function handleDiscardCurrent(button) {
+  const taskId = button.dataset.taskId || currentTask?.id;
+  if (!taskId) return;
+  if (!requiresSecondClick(button)) return;
+  resetDangerArming();
+  await discardTaskById(taskId);
+}
+
+$('#btn-step-discard').addEventListener('click', async (event) => handleDiscardCurrent(event.currentTarget));
+$('#btn-quit').addEventListener('click', async (event) => handleDiscardCurrent(event.currentTarget));
+$('#btn-back-tasks').addEventListener('click', async () => {
+  stimer.stop();
+  await showHome();
+});
+$('#btn-new-task').addEventListener('click', async () => {
+  $('#task-input').value = '';
+  await showHome();
+});
+
+$('#btn-feed').addEventListener('click', async () => {
+  const result = await Pets.feed(1);
+  if (!result.ok) {
+    flash(result.reason);
+    return;
+  }
+  triggerFeedAnimation();
+  const state = await Pets.getState();
+  const petName = petLabel(state, result.petId);
+  if (getSettingsCached()?.stepTimer?.endSound !== false) playFeedJingle();
+  await renderPet();
+  flash(`+${result.delta} 经验 · 累计喂养 ${result.totalForPet} · 连续 ${result.streak} 天${result.leveledUp ? ` · Lv.${result.newLevel}` : ''} 🎉`, { big: result.leveledUp });
+  if (PET_MILESTONES.includes(result.totalForPet)) {
+    setTimeout(() => flash(`🎉 ${petName} ${result.totalForPet} 养料勋章解锁！`, { big: true, duration: 2400 }), 900);
+  }
+});
+
+$('#pet-upload').addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const dataUrl = reader.result;
+    const name = prompt('给你的宠物起个名字？', '我的宠物') || '我的宠物';
+    await Pets.setCustomImage(dataUrl, name);
+    flash('自定义形象已绑定 🎉');
+    renderPet();
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+});
+$('#btn-upload-custom').addEventListener('click', () => $('#pet-upload').click());
+$('#btn-toggle-cartoon').addEventListener('click', async () => {
+  const state = await Pets.toggleCartoonize();
+  flash(state.cartoonize ? '✨ 已开启卡通化' : '已关闭卡通化');
+  renderPet();
+});
+
+$('#btn-cal-30').addEventListener('click', () => renderCalendar(30));
+$('#btn-cal-90').addEventListener('click', () => renderCalendar(90));
+
+$('#btn-save-display-name').addEventListener('click', async () => {
+  await setDisplayName($('#my-display-name').value);
+  await renderMyView();
+  flash('昵称已保存');
+});
+
+$('#btn-sync-toggle').addEventListener('click', async () => {
+  if (!isSyncSupported()) {
+    flash('当前环境不支持跨设备同步');
+    return;
+  }
+  const next = !(await Storage.getSyncEnabled());
+  await Storage.setSyncEnabled(next);
+  await renderMyView();
+  flash(next ? '已启用跨设备同步基础' : '已关闭跨设备同步');
+});
+
+$('#btn-export-backup').addEventListener('click', exportBackup);
+$('#btn-import-backup').addEventListener('click', () => $('#backup-file-input').click());
+$('#backup-file-input').addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    await importBackup(file);
+  } catch (error) {
+    flash(`导入失败：${error.message || error}`, { big: true, duration: 2400 });
+  } finally {
+    event.target.value = '';
+  }
+});
+
+$('#btn-regenerate-user-id').addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  if (!requiresSecondClick(button)) return;
+  resetDangerArming();
+  await regenerateUserId();
+  await renderMyView();
+  flash('已生成新的用户 ID');
+});
+
+$('#btn-regenerate-user-id').dataset.confirmText = '再点一次确认生成';
+
+$('#btn-stimer-start').addEventListener('click', () => stimer.start(getCurrentStepMinutes()));
+$('#btn-stimer-pause').addEventListener('click', () => stimer.pause());
+$('#btn-stimer-resume').addEventListener('click', () => stimer.resume());
+$('#btn-stimer-add').addEventListener('click', () => stimer.addMinutes(1));
+$('#btn-stimer-stop').addEventListener('click', () => stimer.stop());
 renderStimer(0, stimer.snapshot());
+
+(async function boot() {
+  await ensureProfile();
+  await primeSettingsCache();
+  await refreshLLMHint();
+  await refreshResumeCard();
+  await refreshUserBadge();
+  showView('input');
+  const current = await Storage.getCurrentTask();
+  if (current && current.currentIndex < current.steps.length && urlParams.get('full') === '1') {
+    enterStepsView(current);
+  }
+})();

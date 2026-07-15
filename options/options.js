@@ -158,26 +158,15 @@ $('#btn-save').addEventListener('click', save);
 $('#btn-test').addEventListener('click', testLLM);
 
 $('#btn-clear-current').addEventListener('click', async () => {
-  if (!confirm('清空当前任务？')) return;
   await Storage.clearCurrentTask();
   alert('已清空当前任务。');
 });
 $('#btn-clear-history').addEventListener('click', async () => {
-  if (!confirm('清空历史记录？')) return;
-  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-    chrome.storage.local.remove('lsk_history_v1');
-  } else {
-    localStorage.removeItem('lsk_history_v1');
-  }
+  await Storage.setHistory([]);
   alert('已清空历史记录。');
 });
 $('#btn-clear-all').addEventListener('click', async () => {
-  if (!confirm('确定重置所有数据？（设置、当前任务、历史、统计都会清空！）')) return;
-  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-    chrome.storage.local.clear();
-  } else {
-    ['lsk_settings_v1','lsk_current_task_v1','lsk_history_v1','lsk_stats_v1'].forEach(k => localStorage.removeItem(k));
-  }
+  await Storage.resetAllLocalData();
   alert('已重置所有数据。');
   await load();
 });
