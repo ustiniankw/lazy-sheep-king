@@ -1,4 +1,4 @@
-/* popup.css — v0.3.3 */
+/* popup.css — v0.3.5 */
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
@@ -298,6 +298,7 @@ a:hover { text-decoration: underline; }
   position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px;
   padding: 10px 16px 12px; background: rgba(255,245,214,.92); backdrop-filter: blur(8px); border-top: 1px solid rgba(240,201,109,.8);
 }
+body.full .footer-bar { left: 50%; right: auto; transform: translateX(-50%); width: 100%; max-width: 760px; }
 .footer-link, .user-badge {
   border: none; background: rgba(255,255,255,.75); color: #5c3a1e; border-radius: 999px; padding: 7px 12px; font-size: 12px; cursor: pointer;
 }
@@ -417,3 +418,110 @@ a:hover { text-decoration: underline; }
   .team-empty-actions, .team-join-row, .team-sync-row, .team-setting-row { flex-direction: column; }
   .team-actions-grid { grid-template-columns: 1fr; }
 }
+
+/* ===== v0.3.5 认证账号系统 ===== */
+.account-card {
+  display: flex; gap: 12px; align-items: center;
+  background: linear-gradient(135deg, #fffef7 0%, #fff0cf 100%);
+  border: 2px solid #f0c96d; border-radius: 16px;
+  padding: 14px; margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(176,86,44,0.08);
+}
+.account-avatar-wrap { position: relative; flex: none; }
+.account-avatar-img, .account-avatar-fallback {
+  width: 56px; height: 56px; border-radius: 16px; object-fit: cover;
+  background: #ffe8b8; box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+}
+.account-avatar-fallback {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; font-weight: 800; color: #b0562c;
+}
+.verified-badge {
+  position: absolute; right: -4px; bottom: -4px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #2ea44f; color: white; font-size: 12px;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid #fffef7;
+}
+.account-main { flex: 1; min-width: 0; }
+.account-name-row { display: flex; gap: 6px; align-items: center; }
+.account-name-input {
+  flex: 1; min-width: 0; border: 1px solid transparent; background: transparent;
+  font-size: 16px; font-weight: 800; color: #5c3a1e; padding: 2px 4px; border-radius: 8px;
+  outline: none;
+}
+.account-name-input:focus { border-color: #f0c96d; background: #fffef7; }
+.account-chip-row { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.mode-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+}
+.mode-guest { background: #efe3cf; color: #8c7455; }
+.mode-passphrase { background: #e6dcff; color: #6a4fb0; }
+.mode-github { background: #24292e; color: #ffffff; }
+.account-sub { font-size: 11px; color: #8c7455; margin-top: 6px; }
+
+.account-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.account-actions .btn { width: 100%; }
+.account-actions .modal-input { width: 100%; }
+
+/* 弹窗 */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 999;
+  background: rgba(60,42,26,0.45); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal-box {
+  width: 100%; max-width: 340px; max-height: 90vh; overflow-y: auto;
+  background: #fffef7; border-radius: 18px; padding: 18px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.modal-title { font-size: 16px; font-weight: 800; color: #5c3a1e; }
+.modal-tabs { display: flex; gap: 6px; margin-bottom: 14px; background: #f3e6cc; border-radius: 10px; padding: 4px; }
+.modal-tab {
+  flex: 1; border: none; background: transparent; cursor: pointer;
+  font-size: 12px; font-weight: 700; color: #8c7455; padding: 7px 6px; border-radius: 8px;
+  transition: background .15s, color .15s;
+}
+.modal-tab.active { background: #fffef7; color: #5c3a1e; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+.modal-pane { display: flex; flex-direction: column; }
+.modal-label { font-size: 12px; font-weight: 600; color: #7a5a3a; margin: 8px 0 4px; }
+.modal-input {
+  width: 100%; padding: 9px 11px; border-radius: 10px; border: 2px solid #f0c96d;
+  background: #fffef7; font-size: 14px; outline: none; font-family: inherit;
+  transition: border-color .15s;
+}
+.modal-input:focus { border-color: #d99a3d; }
+.modal-note { font-size: 11px; color: #8c7455; line-height: 1.6; margin-top: 10px; }
+.modal-error {
+  font-size: 12px; color: #c0392b; background: #fdecea; border-radius: 8px;
+  padding: 8px 10px; margin: 10px 0;
+}
+.modal-pane .btn.big { margin-top: 12px; }
+
+/* 密码强度条 */
+.strength-meter { height: 6px; border-radius: 999px; background: #f0e3cc; overflow: hidden; margin-top: 8px; }
+.strength-bar { height: 100%; width: 0%; border-radius: 999px; transition: width .2s, background .2s; }
+.strength-bar.strength-bad { background: #e05b5b; }
+.strength-bar.strength-mid { background: #e0a83d; }
+.strength-bar.strength-good { background: #2ea44f; }
+.strength-text { font-size: 11px; color: #8c7455; margin-top: 5px; }
+
+/* GitHub 设备流 */
+.gh-flow {
+  margin-top: 14px; padding: 12px; border-radius: 12px;
+  background: #f6f0e2; border: 1px dashed #d99a3d;
+}
+.gh-code-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gh-code {
+  font-family: "SFMono-Regular", Consolas, monospace; font-size: 22px; font-weight: 800;
+  letter-spacing: 3px; color: #24292e; background: #fffef7; padding: 6px 12px; border-radius: 8px;
+}
+.gh-qr { margin: 10px 0; }
+.gh-qr-fallback { font-size: 11px; color: #8c7455; word-break: break-all; }
+.gh-flow-hint { font-size: 12px; color: #5c3a1e; line-height: 1.6; }
+.gh-status { font-size: 12px; color: #b0562c; margin-top: 8px; font-weight: 700; }
+
+/* 队友 GitHub 徽章 */
+.team-github-badge { font-size: 12px; margin-left: 2px; }

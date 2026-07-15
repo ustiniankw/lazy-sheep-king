@@ -303,26 +303,29 @@
         <button id="btn-my-back" class="icon-btn" title="返回">←</button>
       </div>
 
-      <div class="my-card">
-        <div class="my-row">
-          <span class="my-label">用户 ID</span>
-          <code id="my-user-id">usr_******</code>
+      <div class="account-card" id="account-card">
+        <div class="account-avatar-wrap">
+          <img id="account-avatar-img" class="account-avatar-img hidden" alt="头像" />
+          <div id="account-avatar-fallback" class="account-avatar-fallback">🐑</div>
+          <span id="account-verified" class="verified-badge hidden" title="GitHub 已验证身份">✔</span>
         </div>
-        <div class="my-row">
-          <span class="my-label">显示名称</span>
-          <div class="my-inline-grow">
-            <input id="my-display-name" class="my-input" placeholder="给自己起个名字" />
+        <div class="account-main">
+          <div class="account-name-row">
+            <input id="account-display-name" class="account-name-input" placeholder="给自己起个名字" />
+            <button id="btn-account-save-name" class="btn tiny ghost" title="保存昵称">保存</button>
           </div>
-          <button id="btn-save-display-name" class="btn tiny ghost">保存</button>
+          <div class="account-chip-row">
+            <span id="account-mode-chip" class="mode-chip mode-guest">👤 访客</span>
+            <button id="btn-account-lock" class="btn tiny ghost hidden">🔒 锁定</button>
+          </div>
+          <div class="account-sub" id="account-sub">匿名模式 · 数据仅保存在本机</div>
         </div>
-        <div class="my-row">
-          <span class="my-label">设备</span>
-          <span id="my-device-label">Web</span>
-        </div>
-        <div class="my-row">
-          <span class="my-label">创建时间</span>
-          <span id="my-created-at">—</span>
-        </div>
+      </div>
+
+      <div class="my-card">
+        <div class="my-card-title">🔐 账号与认证</div>
+        <div class="my-card-sub" id="auth-hint-text">选择一种免费方式创建账号，多设备也能找回你的进度。</div>
+        <div class="account-actions" id="account-actions"><!-- 由 JS 按当前模式渲染 --></div>
       </div>
 
       <div class="my-card">
@@ -349,11 +352,88 @@
           <button id="btn-regenerate-user-id" class="btn ghost">🆕 生成新用户 ID</button>
           <button id="btn-open-options-from-my" class="btn ghost">⚙ 打开完整设置</button>
         </div>
-        <div class="my-card-sub">导入会按合并策略处理任务 / 历史 / 统计；设置、宠物与队伍状态以备份为准。</div>
+        <div class="my-card-sub" id="backup-enc-hint">导入会按合并策略处理任务 / 历史 / 统计；本地密码账号导出的备份会自动加密。</div>
+      </div>
+
+      <div class="my-card">
+        <div class="my-card-title">ℹ️ 账户信息</div>
+        <div class="my-row">
+          <span class="my-label">用户 ID</span>
+          <code id="my-user-id">usr_******</code>
+        </div>
+        <div class="my-row">
+          <span class="my-label">设备</span>
+          <span id="my-device-label">Web</span>
+        </div>
+        <div class="my-row">
+          <span class="my-label">创建时间</span>
+          <span id="my-created-at">—</span>
+        </div>
       </div>
 
       <input id="backup-file-input" type="file" accept="application/json" style="display:none" />
     </section>
+
+    <!-- 登录 / 创建账号 弹窗 -->
+    <div id="sign-in-modal" class="modal-overlay hidden" data-tab="passphrase">
+      <div class="modal-box">
+        <div class="modal-head">
+          <div class="modal-title" id="sign-in-title">创建 / 登录账号</div>
+          <button id="btn-modal-close" class="icon-btn" title="关闭">✕</button>
+        </div>
+
+        <div class="modal-tabs">
+          <button class="modal-tab active" data-modal-tab="passphrase">🔐 本地密码</button>
+          <button class="modal-tab" data-modal-tab="github">🐙 GitHub</button>
+        </div>
+
+        <!-- 本地密码 -->
+        <div class="modal-pane" data-pane="passphrase">
+          <label class="modal-label">昵称</label>
+          <input id="pp-name" class="modal-input" placeholder="例如：懒羊羊管理员" />
+          <label class="modal-label">密码（至少 6 位，避免常见弱口令）</label>
+          <input id="pp-pass" class="modal-input" type="password" placeholder="设置密码" />
+          <div class="strength-meter" id="pp-strength">
+            <div class="strength-bar" id="pp-strength-bar"></div>
+          </div>
+          <div class="strength-text" id="pp-strength-text">派生使用 PBKDF2 · 100000 次 · SHA-256；密码永不落盘。</div>
+          <label class="modal-label" id="pp-confirm-label">确认密码</label>
+          <input id="pp-pass2" class="modal-input" type="password" placeholder="再输入一次" />
+          <div class="modal-error hidden" id="pp-error"></div>
+          <button id="btn-pp-submit" class="btn primary big">🔐 创建本地密码账号</button>
+          <div class="modal-note">本地密码账号在任何环境（含网页试玩）都可用，密码只用于在本机派生加密密钥。</div>
+        </div>
+
+        <!-- GitHub -->
+        <div class="modal-pane hidden" data-pane="github">
+          <label class="modal-label">你的 GitHub OAuth App client_id</label>
+          <input id="gh-client-id" class="modal-input" placeholder="Iv1.xxxxxxxxxxxx" />
+          <div class="modal-note">
+            为保持“完全免费 + 完全归你所有”，我们不内置共享 client_id。请自行创建一个免费的
+            <b>GitHub OAuth App</b>（三步）：<br/>
+            1. 打开 GitHub → Settings → Developer settings → OAuth Apps → New；<br/>
+            2. 勾选 <b>Enable Device Flow</b>，Homepage/Callback 随意填；<br/>
+            3. 复制生成的 <b>Client ID</b> 粘贴到上面即可。
+          </div>
+          <button id="btn-gh-start" class="btn primary big">🐙 开始 GitHub 登录</button>
+
+          <div class="gh-flow hidden" id="gh-flow">
+            <div class="gh-code-row">
+              <span class="gh-code" id="gh-user-code">---------</span>
+              <button id="btn-gh-copy" class="btn tiny ghost">📋 复制</button>
+            </div>
+            <div class="gh-qr" id="gh-qr"></div>
+            <div class="gh-flow-hint">
+              打开 <a id="gh-verify-link" href="https://github.com/login/device" target="_blank" rel="noopener">github.com/login/device</a>
+              输入上面的代码完成授权。
+            </div>
+            <div class="gh-status" id="gh-status">等待授权中…<span id="gh-countdown"></span></div>
+          </div>
+          <div class="modal-error hidden" id="gh-error"></div>
+        </div>
+      </div>
+    </div>
+
 
     <footer class="footer-bar">
       <button id="footer-home" class="footer-link">🏠 首页</button>

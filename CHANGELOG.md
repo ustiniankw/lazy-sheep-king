@@ -1,5 +1,61 @@
 # CHANGELOG
 
+## v0.3.5 — 认证账号系统（三种免费模式，零付费依赖）（2026-07-15）
+
+🚀 **在线试玩**：https://1e8add08b5ba.aime-app.bytedance.net
+
+> 从「本地匿名 userId」升级为真正的「认证账号」体系：新设备可登录同一账号、同一浏览器可区分多人、备份可加密。三种模式全部 **¥0 成本、无付费后端依赖**，且匿名用户可平滑升级为真实账号而不丢数据。
+
+### 1. 新增 `lib/auth.js` — 统一认证层
+- `MODE = { GUEST, PASSPHRASE, GITHUB, GOOGLE }`，当前模式互斥。
+- 全异步、无同步 IO；所有函数在网页试玩环境可安全调用（无 `chrome.*` 硬依赖）；不可用时返回 `{ok:false, code, message}` 而非抛错。
+- 导出 API：`getAuthState / isSignedIn / setupPassphrase / verifyPassphrase / changePassphrase / evaluatePassphrase / beginGitHubDeviceFlow / pollGitHubDeviceFlow / getGitHubToken / signInGoogle / signOut / getSession / lockSession / encryptBackup / decryptBackup`。
+
+### 2. 三种账号模式
+- **👤 访客（Guest）**：保留原有本地匿名 `usr_xxxxxx`，不想认证的用户零感知。
+- **🔐 本地密码账号（Passphrase，全环境可用，含网页试玩）**：
+  - 昵称 + 密码（≥6 位，屏蔽明显弱口令）。
+  - Web Crypto `PBKDF2(passphrase, salt=random16B, iters=100000, SHA-256) → 32B key`。
+  - 仅落盘 `{salt, verifierHash=SHA256(key), createdAt}`，**绝不存储密码或原始 key**。
+  - 派生 key **只在内存**中保留供本次 popup 会话加解密。
+  - 会话闲置 15 分钟自动锁定（`getSession()` 返回 null）。
+  - 敏感操作加锁：`生成新用户ID` / `导入备份` / `切换账户` 需先验证解锁。
+  - **加密备份**：解锁状态下 `导出备份` 使用 AES-GCM，输出带 `enc:true` 标记；导入时提示输入密码。
+- **🐙 GitHub OAuth Device Flow（扩展环境优先，网页 CORS 受限时优雅禁用）**：
+  - 用户自建 **免费公开 GitHub OAuth App** 并粘贴自己的 `client_id`（**不内置共享 client_id/secret，保持完全用户自持、零成本**）。
+  - `POST /login/device/code` → `POST /login/oauth/access_token` 轮询 → `GET api.github.com/user`。
+  - 弹窗显示 `user_code`、复制按钮、验证链接与倒计时轮询状态。
+  - Token 以本地设备 key（AES-GCM）**加密落盘**（best-effort，非真正 KMS），供后续 Gist 同步。
+  - 网页试玩若被 CORS 拦截，捕获并提示「网页试玩环境无法完成 GitHub 登录，请在安装扩展后使用」。
+  - 退出时尽力 `DELETE /applications/{client_id}/token` 撤销，失败则仅本地删除。
+- **🟢 Google（Chrome Identity API，骨架占位）**：按钮 disabled，`signInGoogle` 返回 `{ok:false, code:'NOT_ENABLED'}`，tooltip/文档说明需扩展上架 Chrome Web Store 并配置稳定 OAuth2 client_id 后启用。
+
+### 3. 多账号数据命名空间（`lib/storage.js`）
+- 物理键格式 `lsk:${accountKey}:${logicalKey}`，`accountKey` 为 `guest:${userId}` / `p:${userId}` / `gh:${providerId}`。
+- v0.3.5 首次启动自动迁移：旧未命名空间键 → `lsk:guest:${legacyUserId}:...`，写入 `_migrated_035` 标记，不丢数据。
+- 新增 `switchAccount / copyAccountData / getCurrentAccountKey / getGlobal/setGlobal/removeGlobal / ensureMigrated`；活跃账号键存于 `lsk_active_account_v1`。
+- 读取未知键干净地返回默认值。
+
+### 4. UI 重构「我的」视图 + 登录弹窗
+- 顶部账号卡片：头像（自定义宠物图 / GitHub 头像 / 首字母生成）、内联改名、模式 chip（👤 访客 / 🔐 本地账号 / 🐙 GitHub / 🟢 Google 未启用）、GitHub 已验证徽章、🔒 锁定按钮。
+- 上下文相关的账号操作区（访客创建/登录、本地账号解锁/改密/锁定/退出、GitHub 主页/退出）。
+- 新增 `#sign-in-modal`：passphrase / GitHub 标签页，密码强度条，GitHub client_id 输入 + 复制代码 + 验证链接 + 轮询状态倒计时。
+- 队友卡片：成员 `provider=github` 时显示 🐙 已验证徽章。
+
+### 5. `lib/user.js` 兼容门面
+- 保留为向后兼容 facade，委托 `lib/auth.js`（`getProfile→getAuthState`、`setDisplayName`、`regenerateUserId` 受会话解锁保护）。
+- 新增 `lib/user_id.js` 抽出无依赖的 userId 工具（`safeUUID / createUserId / detectDeviceLabel / defaultDisplayName`）。
+
+### 6. manifest / 权限
+- 版本 `0.3.4 → 0.3.5`。
+- 新增 `identity` 权限（Google 未启用时为 no-op）。
+- 新增 `host_permissions`：`https://github.com/*`、`https://api.github.com/*`。
+
+### 7. 测试
+- 新增 `tests/auth.test.mjs`（17）：passphrase setup/verify（正/负）、PBKDF2 同盐同密一致/异盐不同、加密备份 roundtrip、锁定清会话、改密、GitHub device flow（mock fetch：pending×2 → access_token → user profile）、`beginGitHubDeviceFlow('')→MISSING_CLIENT_ID`、GitHub CORS 失败优雅降级、Google `NOT_ENABLED`、强度评估。
+- 新增 `tests/storage_ns.test.mjs`（7）：旧数据迁移不丢失、`_migrated_035` 写入、账号键正确、命名空间隔离、未知账号返回默认、`copyAccountData` 升级保留数据。
+- 全量：**163/163 通过**（原 139 + 新 24）。
+
 ## v0.3.4 — 组队模式 + 隐私模式 + 免费 AI 精修（2026-07-15）
 
 🚀 **在线试玩**：https://5bd40465996c.aime-app.bytedance.net
