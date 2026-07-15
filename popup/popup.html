@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>懒羊羊大王</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div id="app" class="app">
+    <!-- 顶部条 -->
+    <header class="topbar">
+      <div class="brand">
+        <img src="../icons/icon-48.png" class="brand-logo" alt="懒羊羊大王" />
+        <div class="brand-text">
+          <div class="brand-title">懒羊羊大王</div>
+          <div class="brand-sub">让懒虫也能一步一步搞定事情</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button id="btn-open-full" class="icon-btn" title="在新标签页打开大屏模式">⛶</button>
+        <button id="btn-options" class="icon-btn" title="设置">⚙</button>
+      </div>
+    </header>
+
+    <!-- 视图：输入任务 -->
+    <section class="view view-input" data-view="input">
+      <label class="field-label">今天想搞定什么事？</label>
+      <textarea id="task-input" class="task-input" placeholder="例如：把这周的周报写完 / 收拾一下桌面 / 学完 React 第 3 章…" rows="3"></textarea>
+
+      <div class="row-between">
+        <div class="chips">
+          <span class="chip" data-example="把这周的周报写完">📝 写周报</span>
+          <span class="chip" data-example="收拾一下我的桌面">🧹 打扫桌面</span>
+          <span class="chip" data-example="学完 React 官方教程第 3 章">📚 学 React</span>
+          <span class="chip" data-example="去操场慢跑 30 分钟">🏃 跑步</span>
+        </div>
+      </div>
+
+      <div class="settings-hint" id="llm-hint">
+        <span class="dot"></span>
+        <span id="llm-hint-text">当前使用「本地兜底模板」拆解。<a href="#" id="link-open-options">配置 LLM 更聪明</a></span>
+      </div>
+
+      <button id="btn-breakdown" class="btn primary big">
+        <span class="btn-emoji">✂️</span>拆成傻瓜步骤，开干！
+      </button>
+
+      <div id="resume-card" class="resume-card hidden">
+        <div class="resume-title">上次还有一个任务没完成 👇</div>
+        <div class="resume-body">
+          <div class="resume-goal" id="resume-goal">—</div>
+          <div class="resume-progress">已完成 <span id="resume-done">0</span>/<span id="resume-total">0</span> 步</div>
+        </div>
+        <div class="resume-actions">
+          <button id="btn-resume" class="btn small primary">继续</button>
+          <button id="btn-discard" class="btn small ghost">丢弃</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 视图：分步执行 -->
+    <section class="view view-steps hidden" data-view="steps">
+      <div class="goal-line">
+        <span class="goal-label">目标</span>
+        <span class="goal-text" id="goal-text">—</span>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+        <div class="progress-text">
+          <span id="step-index">1</span> / <span id="step-total">1</span>
+          &nbsp;·&nbsp; 累计已完成 <span id="lifetime-steps">0</span> 步
+        </div>
+      </div>
+
+      <div class="step-card" id="step-card">
+        <div class="step-tag">现在只需要做这一件小事</div>
+        <div class="step-title" id="step-title">—</div>
+        <div class="step-detail" id="step-detail">—</div>
+        <div class="step-meta">
+          <span class="step-est" id="step-est">~ 3 分钟</span>
+        </div>
+      </div>
+
+      <div class="mascot-line">
+        <img src="../icons/icon-128.png" class="mascot" alt="懒羊羊" />
+        <div class="mascot-say" id="mascot-say">"简单到不能再简单啦，来嘛来嘛～"</div>
+      </div>
+
+      <div class="step-actions">
+        <button id="btn-skip" class="btn ghost">跳过这步</button>
+        <button id="btn-done" class="btn primary big">
+          <span class="btn-emoji">✅</span>完成，下一步！
+        </button>
+      </div>
+
+      <div class="steps-mini">
+        <div class="steps-mini-title">全部步骤</div>
+        <ol id="steps-list" class="steps-list"></ol>
+      </div>
+
+      <div class="bottom-actions">
+        <button id="btn-quit" class="btn tiny ghost">放弃任务</button>
+      </div>
+    </section>
+
+    <!-- 视图：完成 -->
+    <section class="view view-done hidden" data-view="done">
+      <div class="done-anim">
+        <img src="../icons/icon-256.png" class="mascot-big" alt="懒羊羊大王" />
+        <div class="crown">👑</div>
+      </div>
+      <div class="done-title">恭喜大王，任务圆满达成！</div>
+      <div class="done-sub" id="done-sub">你已经比 99% 的懒羊羊更勤快啦～</div>
+
+      <div class="stats-row">
+        <div class="stat">
+          <div class="stat-num" id="stat-steps">0</div>
+          <div class="stat-label">累计完成步数</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num" id="stat-tasks">0</div>
+          <div class="stat-label">累计完成任务</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num" id="stat-food">0</div>
+          <div class="stat-label">养料 · v2</div>
+        </div>
+      </div>
+
+      <div class="pet-preview">
+        <div class="pet-preview-title">🐣 线上宠物预告（v2 即将上线）</div>
+        <div class="pet-preview-body">
+          v2 将支持喂养 <b>🐑 懒羊羊 / 🐈 猫咪 / 🐕 小狗</b>，甚至可以<b>上传自己的形象</b>作为宠物！<br/>
+          用累计步数兑换养料 → 喂宠物 → 看它一天天变大变强～<br/>
+          当前养料库存：<b id="pet-food-2">0</b> · 等级 Lv.<b id="pet-lv">1</b>
+        </div>
+      </div>
+
+      <div class="done-actions">
+        <button id="btn-new-task" class="btn primary big">再来一个任务！</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

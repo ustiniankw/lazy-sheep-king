@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>懒羊羊大王 · 预览</title>
+  <style>
+    body { margin:0; background:#33223e; min-height:100vh; display:flex; align-items:flex-start; justify-content:center; padding:20px; font-family:sans-serif; }
+    .frame { border-radius:20px; box-shadow:0 20px 50px rgba(0,0,0,0.4); overflow:hidden; width:420px; background:white; }
+    .tips { color:#eee; font-size:12px; max-width:420px; margin:10px 0 20px; text-align:center; }
+    a { color:#ffd166; }
+  </style>
+</head>
+<body>
+  <div>
+    <p class="tips">
+      本页仅用于本地预览 UI 效果，未通过 Chrome 扩展加载所以 <b>chrome.storage 被 localStorage 模拟</b>；<br/>
+      实际使用请把仓库根目录用「加载已解压的扩展程序」加载到 Chrome。<br/>
+      <a href="../popup/popup.html?full=1" target="_blank">👉 直接打开大屏模式</a>
+    </p>
+    <iframe class="frame" src="../popup/popup.html" style="width:420px;height:680px;border:0;"></iframe>
+  </div>
+</body>
+</html>

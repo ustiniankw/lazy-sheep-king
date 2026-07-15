@@ -1,0 +1,65 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: linear-gradient(180deg, #fff8dc 0%, #fce4ec 100%);
+  color: #3b2e2e;
+  min-height: 100vh;
+}
+.wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 60px; }
+header { display: flex; gap: 16px; align-items: center; margin-bottom: 24px; }
+.logo { width: 72px; height: 72px; border-radius: 20px; background: white; box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+h1 { margin: 0; color: #6b3e8a; font-size: 22px; }
+.lead { margin: 4px 0 0; color: #8c6c8c; font-size: 13px; }
+
+.card {
+  background: rgba(255,255,255,0.7);
+  border-radius: 16px;
+  padding: 20px 22px;
+  margin-bottom: 18px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+}
+.card h2 { margin: 0 0 12px; font-size: 15px; color: #6b3e8a; }
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 13px; color: #6b3e8a; margin-bottom: 4px; font-weight: 600; }
+.field input[type="text"], .field input[type="password"], .field select {
+  width: 100%; padding: 8px 12px;
+  font-size: 14px; border-radius: 10px; border: 2px solid #f4d47a;
+  background: #fffef7; outline: none; font-family: inherit;
+}
+.field input[type="checkbox"] { margin-right: 6px; transform: translateY(1px); }
+.hint { font-size: 12px; color: #8c6c8c; margin: 4px 0 0; }
+
+.actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.btn {
+  border: none; cursor: pointer;
+  border-radius: 999px; padding: 8px 14px;
+  font-size: 13px; font-weight: 600;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.btn.primary {
+  background: linear-gradient(135deg, #f0a84a 0%, #ef476f 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(239, 71, 111, 0.3);
+}
+.btn.ghost { background: rgba(255,255,255,0.8); color: #6b3e8a; border: 1px solid #f0d0e6; }
+.btn.danger { background: #ef476f; color: white; }
+.btn:hover { transform: translateY(-1px); }
+
+.test-result { font-size: 12px; color: #7a4a7a; }
+.test-result.ok { color: #4CAF50; }
+.test-result.err { color: #ef476f; }
+
+.card.danger { border: 1px dashed #ef476f; }
+.card.danger p { margin-top: 0; color: #7a4a7a; font-size: 13px; }
+
+.save-bar {
+  position: sticky; bottom: 0;
+  padding: 12px 0; margin-top: 8px;
+  display: flex; gap: 12px; align-items: center;
+}
+.save-tip { font-size: 12px; color: #4CAF50; }
+
+footer { text-align: center; margin-top: 30px; color: #8c6c8c; font-size: 12px; }
+footer a { color: #d16aab; text-decoration: none; }
