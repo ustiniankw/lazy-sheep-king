@@ -369,3 +369,27 @@ a:hover { text-decoration: underline; }
 .pet-slot-lock { font-size: 10px; color: #b0562c; margin-top: 2px; }
 
 .pet-footer-note { margin-top: 12px; font-size: 11px; color: #8c7455; text-align: center; }
+
+
+/* ===== v2.1 · 心情动画 ===== */
+.pet-avatar.mood-idle    { animation: petIdle 3.6s ease-in-out infinite; }
+.pet-avatar.mood-bounce  { animation: petBounce 1.2s ease-in-out infinite; }
+.pet-avatar.mood-sleepy  { animation: petSleepy 5s ease-in-out infinite; filter: saturate(0.85) brightness(0.95); }
+.pet-avatar.mood-shake   { animation: petShake 1.6s ease-in-out infinite; }
+
+@keyframes petIdle    { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes petBounce  { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-8px) scale(1.04); } }
+@keyframes petSleepy  { 0%,100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+@keyframes petShake   { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-3px) rotate(-2deg); } 75% { transform: translateX(3px) rotate(2deg); } }
+
+.pet-mood {
+  min-height: 22px;
+  font-size: 13px;
+  color: #5c3a1e;
+  background: #fff5d6;
+  border: 1px dashed #f0c96d;
+  border-radius: 999px;
+  padding: 2px 10px;
+  display: inline-block;
+  margin-top: 6px;
+}
