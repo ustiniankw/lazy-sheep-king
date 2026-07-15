@@ -76,12 +76,11 @@ async function load() {
   $('#sound-enabled').checked = s.soundEnabled !== false;
   $('#step-granularity').value = s.stepGranularity || 'micro';
   $('#show-usage').checked = s.showUsage !== false;
-  // v0.3.0 · 番茄钟
-  const p = s.pomodoro || {};
-  $('#pomo-work').value = String(p.workMinutes || 25);
-  $('#pomo-break').value = String(p.breakMinutes || 5);
-  $('#pomo-auto').checked = p.autoStartNext !== false;
-  $('#pomo-sound').checked = p.soundOnEnd !== false;
+  // v0.3.1 · 步骤倒计时（替代 v0.3.0 番茄钟）
+  const st = s.stepTimer || {};
+  $('#stimer-auto').checked = !!st.autoStart;
+  $('#stimer-sound').checked = st.endSound !== false;
+  $('#stimer-add-on-end').checked = !!st.autoAddOnEnd;
 }
 
 async function save() {
@@ -96,11 +95,10 @@ async function save() {
     soundEnabled: $('#sound-enabled').checked,
     stepGranularity: $('#step-granularity').value,
     showUsage: $('#show-usage').checked,
-    pomodoro: {
-      workMinutes: Math.max(1, Number($('#pomo-work').value) || 25),
-      breakMinutes: Math.max(1, Number($('#pomo-break').value) || 5),
-      autoStartNext: $('#pomo-auto').checked,
-      soundOnEnd: $('#pomo-sound').checked,
+    stepTimer: {
+      autoStart: $('#stimer-auto').checked,
+      endSound: $('#stimer-sound').checked,
+      autoAddOnEnd: $('#stimer-add-on-end').checked,
     },
   };
   await Storage.setSettings(settings);

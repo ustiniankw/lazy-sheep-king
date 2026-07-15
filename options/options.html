@@ -78,27 +78,19 @@
     </section>
 
     <section class="card">
-      <h2>🍅 番茄钟 · v0.3.0 <span class="v-badge">新增</span></h2>
-      <div class="field row-3">
-        <div>
-          <label>专注时长（分钟）</label>
-          <input type="number" id="pomo-work" min="1" max="120" value="25" />
-        </div>
-        <div>
-          <label>小憩时长（分钟）</label>
-          <input type="number" id="pomo-break" min="1" max="60" value="5" />
-        </div>
-        <div>
-          <label>&nbsp;</label>
-          <label class="inline">
-            <input type="checkbox" id="pomo-auto" checked /> 自动进入下一段
-          </label>
-          <label class="inline">
-            <input type="checkbox" id="pomo-sound" checked /> 结束时提示音
-          </label>
-        </div>
+      <h2>🕐 步骤倒计时 · v0.3.1 <span class="v-badge">按每步 estMinutes 计时</span></h2>
+      <div class="field">
+        <label class="inline"><input type="checkbox" id="stimer-auto" /> 进入某一步时自动开始倒计时</label>
       </div>
-      <p class="hint">在「一步一步做」页面点击 🍅 就会开始计时，专注结束会响一下并自动进入小憩。</p>
+      <div class="field">
+        <label class="inline"><input type="checkbox" id="stimer-sound" checked /> 时间到时播放提示音</label>
+      </div>
+      <div class="field">
+        <label class="inline"><input type="checkbox" id="stimer-add-on-end" /> 时间到后自动 +1 分钟继续</label>
+      </div>
+      <p class="hint">
+        养料按每步 <b>estMinutes</b> 发放（1 分钟 = 1 养料）；实际用时 ≤ 计划 → +50% 效率奖励；完成整个任务额外奖励 = 总时长 × 20%。
+      </p>
     </section>
 
     <section class="card danger">
