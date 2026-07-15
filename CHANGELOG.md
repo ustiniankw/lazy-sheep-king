@@ -1,5 +1,37 @@
 # CHANGELOG
 
+## v0.3.0 — 多任务并存 & 番茄钟（2026-07-15）
+
+🚀 **在线试玩**：https://e628d62014a7.aime-app.bytedance.net
+
+### 新增
+- **🗂 多任务并存**
+  - `Storage.getTasks / saveTask / deleteTask / setActiveTaskId / getActiveTaskId`
+  - 数据自动从 v0.2 的 `lsk_current_task_v1` 迁移到 `lsk_tasks_v1 + lsk_active_task_id_v1`
+  - 首页在 ≥ 2 个未完成任务时会显示卡片列表（目标 / 进度条 / 创建时间 / 继续 / 丢弃）
+  - 分步页右下角新增「🗂 切到其他任务」按钮
+- **🍅 番茄钟（v0.3.0 全新模块 `lib/pomodoro.js`）**
+  - 4 phase 状态机：`idle / work / break / paused`
+  - `work → break → work` 自动循环
+  - 可暂停 / 继续 / 结束，累计 🍅 数
+  - 结束提示音：Web Audio 合成，work 结束 3 音铃声，break 结束 2 音短促
+  - 分步页专注红色 / 小憩绿色 / 暂停灰色主题切换
+  - 设置页新增：专注时长（1-120 min）/ 小憩时长（1-60 min）/ 自动进入下一段 / 结束提示音
+- **🌐 在线试玩页**：仓库根新增 `index.html`，左侧文档 / 右侧 iframe 直接嵌入 popup
+
+### 改造
+- `lib/storage.js`：settings 深合并 `pomodoro`；`getCurrentTask / setCurrentTask / clearCurrentTask` 兼容旧 API 但实际操作多任务表
+- `popup/popup.html`：新增 `#tasks-card / #pomo-card / #btn-back-tasks`
+- `popup/popup.js`：`refreshResumeCard` 支持多任务视图；新增 pomodoro widget 绑定
+- `popup/popup.css`：新增 tasks list & pomodoro widget 样式（含 phase 主题色）
+- `options/options.html / options.js / options.css`：新增番茄钟配置区块
+- `manifest.json`：0.2.2 → 0.3.0
+
+### 新增测试
+- `tests/pomodoro.test.mjs`：13/13 ✅ （nextPhase / fmt / start / pause / resume / stop / updateConfig）
+- `tests/tasks.test.mjs`：10/10 ✅ （多任务 CRUD + active 切换 + settings 深合并）
+- 累计单测：46 全部通过
+
 ## v0.2.2 — v2.1 心情 & 卡通化 & 动画（2026-07-15）
 
 ### 新增

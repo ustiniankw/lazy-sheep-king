@@ -77,6 +77,30 @@
       </div>
     </section>
 
+    <section class="card">
+      <h2>🍅 番茄钟 · v0.3.0 <span class="v-badge">新增</span></h2>
+      <div class="field row-3">
+        <div>
+          <label>专注时长（分钟）</label>
+          <input type="number" id="pomo-work" min="1" max="120" value="25" />
+        </div>
+        <div>
+          <label>小憩时长（分钟）</label>
+          <input type="number" id="pomo-break" min="1" max="60" value="5" />
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <label class="inline">
+            <input type="checkbox" id="pomo-auto" checked /> 自动进入下一段
+          </label>
+          <label class="inline">
+            <input type="checkbox" id="pomo-sound" checked /> 结束时提示音
+          </label>
+        </div>
+      </div>
+      <p class="hint">在「一步一步做」页面点击 🍅 就会开始计时，专注结束会响一下并自动进入小憩。</p>
+    </section>
+
     <section class="card danger">
       <h2>🗑️ 数据管理</h2>
       <p>本插件所有数据都保存在浏览器本地，可以随时清空。</p>
