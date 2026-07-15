@@ -17,26 +17,35 @@
     </header>
 
     <section class="card">
-      <h2>LLM 拆解（OpenAI 兼容协议）</h2>
+      <h2>🧠 LLM 拆解 · v1 <span class="v-badge">API 一键切换</span></h2>
       <div class="field">
         <label>
           <input type="checkbox" id="llm-enabled" />
           启用 LLM 拆解（未启用时使用本地兜底模板）
         </label>
       </div>
+
+      <div class="field">
+        <label>Provider 预设</label>
+        <div class="provider-grid" id="provider-grid"></div>
+      </div>
+
       <div class="field">
         <label>Base URL</label>
         <input type="text" id="llm-baseUrl" placeholder="https://api.openai.com/v1" />
-        <p class="hint">兼容 OpenAI ChatCompletion 协议的任意端点。例如 DeepSeek、Moonshot、Ollama 网关等。</p>
+        <p class="hint" id="hint-baseUrl">兼容 OpenAI ChatCompletion 协议的任意端点。</p>
       </div>
       <div class="field">
         <label>API Key</label>
         <input type="password" id="llm-apiKey" placeholder="sk-..." />
-        <p class="hint">仅保存在你本地浏览器 storage 中，不会上传任何服务器。</p>
+        <p class="hint" id="hint-apiKey">仅保存在你本地浏览器 storage 中，不会上传任何服务器。</p>
       </div>
       <div class="field">
         <label>Model</label>
-        <input type="text" id="llm-model" placeholder="gpt-4o-mini" />
+        <div class="model-row">
+          <input type="text" id="llm-model" placeholder="gpt-4o-mini" list="model-list" />
+          <datalist id="model-list"></datalist>
+        </div>
       </div>
       <div class="actions">
         <button id="btn-test" class="btn ghost">测试连接</button>
@@ -45,7 +54,7 @@
     </section>
 
     <section class="card">
-      <h2>体验偏好</h2>
+      <h2>🎨 体验偏好</h2>
       <div class="field">
         <label>
           <input type="checkbox" id="sound-enabled" />
@@ -60,10 +69,16 @@
         </select>
         <p class="hint">注：粒度只在 LLM 拆解时提示模型；本地模板固定为超傻瓜。</p>
       </div>
+      <div class="field">
+        <label>
+          <input type="checkbox" id="show-usage" checked />
+          拆解后显示模型耗时 / token 用量（v1 新增）
+        </label>
+      </div>
     </section>
 
     <section class="card danger">
-      <h2>数据管理</h2>
+      <h2>🗑️ 数据管理</h2>
       <p>本插件所有数据都保存在浏览器本地，可以随时清空。</p>
       <div class="actions">
         <button id="btn-clear-current" class="btn ghost">清空当前任务</button>
@@ -78,7 +93,7 @@
     </div>
 
     <footer>
-      <p>懒羊羊大王 v0.1.0 · Made with 🐑 by <a href="https://github.com/" target="_blank">xiakaiwen</a></p>
+      <p>懒羊羊大王 v0.2.0-dev · Made with 🐑 by <a href="https://github.com/ustiniankw" target="_blank">ustiniankw</a></p>
     </footer>
   </div>
   <script src="options.js" type="module"></script>

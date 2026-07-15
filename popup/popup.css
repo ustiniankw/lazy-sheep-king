@@ -267,3 +267,50 @@ a:hover { text-decoration: underline; }
   50% { transform: translateX(-50%) rotate(6deg); }
   100% { transform: translateX(-50%) rotate(-6deg); }
 }
+
+/* -------------- v1 additions -------------- */
+.plan-hint { font-size: 12px; color: #7a4a7a; margin: 6px 0 8px; }
+.plan-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.meta-tag {
+  font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  background: rgba(255,255,255,0.75); color: #6b3e8a; border: 1px solid #f0d0e6;
+}
+.meta-warn { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #ffe0e6; color: #b0244a; }
+
+.plan-list { list-style: none; padding: 0; margin: 0; max-height: 340px; overflow: auto; }
+.plan-item {
+  padding: 8px 10px; margin-bottom: 8px;
+  background: rgba(255,255,255,0.85); border-radius: 12px;
+  border: 1px solid #f4d47a;
+}
+.plan-item-body { display: flex; flex-direction: column; gap: 4px; }
+.plan-title, .plan-detail {
+  border: none; background: transparent; padding: 4px 6px;
+  font-family: inherit; outline: none;
+}
+.plan-title { font-size: 14px; font-weight: 700; color: #3b2e2e; }
+.plan-detail { font-size: 12px; color: #7a4a7a; }
+.plan-title:focus, .plan-detail:focus, .plan-est-input:focus { background: #fffef0; border-radius: 6px; }
+.plan-item-foot { display: flex; justify-content: space-between; align-items: center; }
+.plan-est { font-size: 11px; color: #8c6c8c; display: flex; align-items: center; gap: 4px; }
+.plan-est-input { width: 48px; border: 1px solid #f4d47a; border-radius: 6px; padding: 2px 4px; text-align: center; font-family: inherit; }
+.plan-item-actions { display: flex; gap: 4px; }
+.plan-btn {
+  border: none; background: rgba(255,255,255,0.7);
+  width: 22px; height: 22px; border-radius: 6px; cursor: pointer;
+  font-size: 12px; color: #6b3e8a;
+}
+.plan-btn:hover { background: white; }
+.plan-btn.danger { color: #ef476f; }
+
+.plan-actions { display: flex; gap: 8px; margin-top: 6px; }
+.plan-cta { display: flex; gap: 8px; margin-top: 12px; }
+.plan-cta .btn.big { flex: 1; margin-top: 0; }
+
+.chip-btn {
+  margin-left: 8px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid #f4d47a; background: rgba(255,255,255,0.85);
+  font-size: 11px; cursor: pointer; color: #6b3e8a; font-family: inherit;
+}
+.chip-btn:hover { background: white; transform: translateY(-1px); }
+.chip-btn:disabled { opacity: 0.6; cursor: wait; }
