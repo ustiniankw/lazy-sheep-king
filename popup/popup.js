@@ -1,9 +1,8 @@
-// popup.js — 主逻辑：输入 → 拆解 → 一步一步 → 完成
+// popup.js — v1: 拆解预览 & 二次编辑 · 分步执行 · 完成
 import { Storage } from '../lib/storage.js';
-import { breakdownTask } from '../lib/breakdown.js';
+import { breakdownTask, refineStep } from '../lib/breakdown.js';
 import { celebrateStep, celebrateAll } from '../lib/celebrate.js';
 
-// ------------------------- Router -------------------------
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
@@ -11,59 +10,36 @@ function showView(name) {
   $$('.view').forEach((el) => el.classList.toggle('hidden', el.dataset.view !== name));
 }
 
-// 支持 ?full=1 打开大屏模式
 const urlParams = new URLSearchParams(location.search);
-if (urlParams.get('full') === '1') {
-  document.body.classList.add('full');
-}
+if (urlParams.get('full') === '1') document.body.classList.add('full');
 
-// 打开大屏模式（可以离开 popup 弹层，避免误关）
 $('#btn-open-full').addEventListener('click', () => {
-  if (typeof chrome !== 'undefined' && chrome.tabs) {
-    chrome.tabs.create({ url: chrome.runtime.getURL('popup/popup.html?full=1') });
-  } else {
-    window.open(location.pathname + '?full=1', '_blank');
-  }
-});
-
-// 打开设置
-$('#btn-options').addEventListener('click', () => openOptions());
-$('#link-open-options').addEventListener('click', (e) => {
-  e.preventDefault();
-  openOptions();
+  if (typeof chrome !== 'undefined' && chrome.tabs) chrome.tabs.create({ url: chrome.runtime.getURL('popup/popup.html?full=1') });
+  else window.open(location.pathname + '?full=1', '_blank');
 });
 function openOptions() {
-  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.openOptionsPage) {
-    chrome.runtime.openOptionsPage();
-  } else {
-    window.open('../options/options.html', '_blank');
-  }
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.openOptionsPage) chrome.runtime.openOptionsPage();
+  else window.open('../options/options.html', '_blank');
 }
+$('#btn-options').addEventListener('click', openOptions);
 
-// ------------------------- LLM 状态提示 -------------------------
+// ---- LLM hint ----
 async function refreshLLMHint() {
   const settings = await Storage.getSettings();
   const enabled = settings?.llm?.enabled && settings?.llm?.apiKey;
-  const hint = $('#llm-hint');
-  const text = $('#llm-hint-text');
+  const hint = $('#llm-hint'); const text = $('#llm-hint-text');
   if (enabled) {
     hint.classList.add('ok');
-    text.innerHTML = `已启用 LLM 拆解（模型：<b>${escapeHtml(settings.llm.model || '')}</b>）· <a href="#" id="link-open-options">修改</a>`;
-    text.querySelector('#link-open-options').addEventListener('click', (e) => { e.preventDefault(); openOptions(); });
+    text.innerHTML = `已启用 LLM 拆解 · <b>${escapeHtml(settings.llm.providerId || 'custom')}</b> / <b>${escapeHtml(settings.llm.model || '')}</b> · <a href="#" class="link-options">修改</a>`;
   } else {
     hint.classList.remove('ok');
-    text.innerHTML = `当前使用「本地兜底模板」拆解。<a href="#" id="link-open-options">配置 LLM 更聪明</a>`;
-    text.querySelector('#link-open-options').addEventListener('click', (e) => { e.preventDefault(); openOptions(); });
+    text.innerHTML = `当前使用「本地兜底模板」拆解。<a href="#" class="link-options">配置 LLM 更聪明</a>`;
   }
+  text.querySelector('.link-options')?.addEventListener('click', (e) => { e.preventDefault(); openOptions(); });
 }
 
-// ------------------------- 输入区 -------------------------
-$$('.chip').forEach((c) => {
-  c.addEventListener('click', () => {
-    $('#task-input').value = c.dataset.example;
-    $('#task-input').focus();
-  });
-});
+// ---- input ----
+$$('.chip').forEach((c) => c.addEventListener('click', () => { $('#task-input').value = c.dataset.example; $('#task-input').focus(); }));
 
 $('#btn-breakdown').addEventListener('click', async () => {
   const goal = $('#task-input').value.trim();
@@ -73,64 +49,158 @@ $('#btn-breakdown').addEventListener('click', async () => {
     setTimeout(() => ($('#task-input').style.borderColor = ''), 800);
     return;
   }
+  await doBreakdown(goal);
+});
 
+async function doBreakdown(goal) {
   const btn = $('#btn-breakdown');
-  const prevLabel = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="btn-emoji">🍃</span>懒羊羊正在拆解中…';
-
+  const prev = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="btn-emoji">🍃</span>懒羊羊正在拆解中…';
   try {
     const settings = await Storage.getSettings();
     const result = await breakdownTask(goal, settings);
     const task = {
-      id: 'task_' + Date.now(),
-      goal,
+      id: 'task_' + Date.now(), goal,
       steps: result.steps.map((s) => ({ ...s, done: false, skipped: false })),
-      currentIndex: 0,
-      createdAt: Date.now(),
-      source: result.source,
+      currentIndex: 0, createdAt: Date.now(),
+      source: result.source, meta: result.meta || null, warning: result.warning || null,
     };
     await Storage.setCurrentTask(task);
-    if (result.warning) {
-      // 静默提示 LLM 失败并已 fallback
-      console.warn('breakdown fallback:', result.warning);
-    }
-    enterStepsView(task);
+    enterPlanView(task);
   } catch (e) {
     alert('拆解失败：' + (e.message || e));
   } finally {
-    btn.disabled = false;
-    btn.innerHTML = prevLabel;
+    btn.disabled = false; btn.innerHTML = prev;
   }
-});
+}
 
-// ------------------------- Resume Card -------------------------
+// ---- resume ----
 async function refreshResumeCard() {
   const cur = await Storage.getCurrentTask();
   const card = $('#resume-card');
-  if (!cur || !Array.isArray(cur.steps) || cur.currentIndex >= cur.steps.length) {
-    card.classList.add('hidden');
-    return;
-  }
+  if (!cur || !Array.isArray(cur.steps) || cur.currentIndex >= cur.steps.length) { card.classList.add('hidden'); return; }
   card.classList.remove('hidden');
   $('#resume-goal').textContent = cur.goal;
-  const done = cur.steps.filter((s) => s.done).length;
-  $('#resume-done').textContent = done;
+  $('#resume-done').textContent = cur.steps.filter((s) => s.done).length;
   $('#resume-total').textContent = cur.steps.length;
 }
-$('#btn-resume').addEventListener('click', async () => {
-  const cur = await Storage.getCurrentTask();
-  if (cur) enterStepsView(cur);
-});
+$('#btn-resume').addEventListener('click', async () => { const cur = await Storage.getCurrentTask(); if (cur) enterStepsView(cur); });
 $('#btn-discard').addEventListener('click', async () => {
   if (!confirm('确定丢弃当前任务？（懒羊羊会有点小失望…）')) return;
-  await Storage.clearCurrentTask();
-  refreshResumeCard();
+  await Storage.clearCurrentTask(); refreshResumeCard();
 });
 
-// ------------------------- Steps View -------------------------
+// ---- v1 · plan view (二次编辑) ----
 let currentTask = null;
 
+async function enterPlanView(task) {
+  currentTask = task;
+  showView('plan');
+  $('#plan-goal').textContent = task.goal;
+  renderPlanMeta(task);
+  renderPlanList();
+}
+
+function renderPlanMeta(task) {
+  const box = $('#plan-meta'); box.innerHTML = '';
+  const settings = getSettingsCached();
+  const showUsage = settings?.showUsage !== false;
+  const src = task.source === 'llm' ? '🧠 LLM 拆解' : '🍃 本地兜底';
+  const parts = [`<span class="meta-tag">${src}</span>`];
+  if (task.warning) parts.push(`<span class="meta-warn" title="${escapeHtml(task.warning)}">⚠ LLM 失败，已 fallback</span>`);
+  if (showUsage && task.meta) {
+    if (task.meta.elapsedMs) parts.push(`<span class="meta-tag">${task.meta.elapsedMs} ms</span>`);
+    if (task.meta.model) parts.push(`<span class="meta-tag">${escapeHtml(task.meta.model)}</span>`);
+    if (task.meta.usage) {
+      const u = task.meta.usage;
+      parts.push(`<span class="meta-tag">↓${u.prompt_tokens || '?'} / ↑${u.completion_tokens || '?'} tok</span>`);
+    }
+  }
+  box.innerHTML = parts.join(' ');
+}
+
+function renderPlanList() {
+  const list = $('#plan-list'); list.innerHTML = '';
+  currentTask.steps.forEach((s, i) => {
+    const li = document.createElement('li');
+    li.className = 'plan-item';
+    li.dataset.idx = String(i);
+    li.innerHTML = `
+      <div class="plan-item-body">
+        <input class="plan-title" data-field="title" value="${escapeHtml(s.title)}" />
+        <input class="plan-detail" data-field="detail" placeholder="详细说明（可选）" value="${escapeHtml(s.detail || '')}" />
+        <div class="plan-item-foot">
+          <label class="plan-est">
+            ~
+            <input class="plan-est-input" data-field="estMinutes" type="number" min="1" max="60" value="${s.estMinutes || 3}" /> 分钟
+          </label>
+          <div class="plan-item-actions">
+            <button class="plan-btn" data-act="up" title="上移">↑</button>
+            <button class="plan-btn" data-act="down" title="下移">↓</button>
+            <button class="plan-btn danger" data-act="del" title="删除">✕</button>
+          </div>
+        </div>
+      </div>
+    `;
+    list.appendChild(li);
+  });
+
+  // bind edits
+  list.querySelectorAll('input').forEach((inp) => {
+    inp.addEventListener('change', () => {
+      const li = inp.closest('.plan-item');
+      const idx = Number(li.dataset.idx);
+      const field = inp.dataset.field;
+      const val = field === 'estMinutes' ? Math.max(1, Number(inp.value) || 3) : inp.value;
+      currentTask.steps[idx][field] = val;
+      Storage.setCurrentTask(currentTask);
+    });
+  });
+  list.querySelectorAll('.plan-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const li = btn.closest('.plan-item');
+      const idx = Number(li.dataset.idx);
+      const act = btn.dataset.act;
+      if (act === 'del') {
+        if (currentTask.steps.length <= 1) return alert('至少要留一个步骤呀 🐑');
+        currentTask.steps.splice(idx, 1);
+      } else if (act === 'up' && idx > 0) {
+        const [s] = currentTask.steps.splice(idx, 1);
+        currentTask.steps.splice(idx - 1, 0, s);
+      } else if (act === 'down' && idx < currentTask.steps.length - 1) {
+        const [s] = currentTask.steps.splice(idx, 1);
+        currentTask.steps.splice(idx + 1, 0, s);
+      }
+      Storage.setCurrentTask(currentTask);
+      renderPlanList();
+    });
+  });
+}
+
+$('#btn-add-step').addEventListener('click', () => {
+  currentTask.steps.push({ title: '新步骤', detail: '', estMinutes: 3, done: false, skipped: false });
+  Storage.setCurrentTask(currentTask);
+  renderPlanList();
+});
+
+$('#btn-rebreakdown').addEventListener('click', async () => {
+  if (!currentTask) return;
+  if (!confirm('重新拆一遍？当前的编辑会被覆盖。')) return;
+  await doBreakdown(currentTask.goal);
+});
+
+$('#btn-back-input').addEventListener('click', () => {
+  showView('input'); refreshResumeCard();
+});
+
+$('#btn-start').addEventListener('click', () => {
+  if (!currentTask) return;
+  currentTask.currentIndex = 0;
+  Storage.setCurrentTask(currentTask);
+  enterStepsView(currentTask);
+});
+
+// ---- steps view ----
 async function enterStepsView(task) {
   currentTask = task;
   showView('steps');
@@ -150,25 +220,16 @@ async function renderSteps() {
   const doneCount = t.steps.filter((s) => s.done).length;
   const stats = await Storage.getStats();
   $('#lifetime-steps').textContent = String(stats.totalStepsCompleted);
-
-  const pct = Math.round((doneCount / total) * 100);
-  $('#progress-fill').style.width = `${pct}%`;
+  $('#progress-fill').style.width = `${Math.round((doneCount / total) * 100)}%`;
 
   $('#step-title').textContent = step.title;
   $('#step-detail').textContent = step.detail || '就这么点事儿，交给你啦！';
   $('#step-est').textContent = `~ ${step.estMinutes || 3} 分钟`;
 
-  const MASCOT_LINES = [
-    '"简单到不能再简单啦，来嘛来嘛～"',
-    '"完成这一小步，就能马上再偷懒一下下！"',
-    '"就当帮懒羊羊一个忙好吗～"',
-    '"这一步，闭着眼睛都能做完！"',
-    '"3、2、1，开动啦！"',
-  ];
-  $('#mascot-say').textContent = MASCOT_LINES[idx % MASCOT_LINES.length];
+  const MASCOT = ['"简单到不能再简单啦，来嘛来嘛～"','"完成这一小步，就能马上再偷懒一下下！"','"就当帮懒羊羊一个忙好吗～"','"这一步，闭着眼睛都能做完！"','"3、2、1，开动啦！"'];
+  $('#mascot-say').textContent = MASCOT[idx % MASCOT.length];
 
-  const list = $('#steps-list');
-  list.innerHTML = '';
+  const list = $('#steps-list'); list.innerHTML = '';
   t.steps.forEach((s, i) => {
     const li = document.createElement('li');
     li.textContent = s.title + (s.skipped ? '（已跳过）' : '');
@@ -177,35 +238,22 @@ async function renderSteps() {
     list.appendChild(li);
   });
 
-  // step 卡片播放弹入动画
   const card = $('#step-card');
-  card.style.animation = 'none';
-  void card.offsetWidth;
-  card.style.animation = '';
+  card.style.animation = 'none'; void card.offsetWidth; card.style.animation = '';
 }
 
 $('#btn-done').addEventListener('click', async () => {
   if (!currentTask) return;
   const t = currentTask;
-  const step = t.steps[t.currentIndex];
-  step.done = true;
-
+  t.steps[t.currentIndex].done = true;
   await Storage.setCurrentTask(t);
   await Storage.addStepCompleted(1);
-
   celebrateStep({ sound: (await Storage.getSettings()).soundEnabled !== false });
-
-  // 稍等动画后再进入下一步
   setTimeout(async () => {
     t.currentIndex += 1;
     if (t.currentIndex >= t.steps.length) {
       await Storage.setCurrentTask(t);
-      await Storage.pushHistory({
-        id: t.id,
-        goal: t.goal,
-        stepsCount: t.steps.length,
-        completedAt: Date.now(),
-      });
+      await Storage.pushHistory({ id: t.id, goal: t.goal, stepsCount: t.steps.length, completedAt: Date.now() });
       await Storage.addTaskCompleted();
       await Storage.clearCurrentTask();
       enterDoneView();
@@ -223,13 +271,7 @@ $('#btn-skip').addEventListener('click', async () => {
   t.currentIndex += 1;
   if (t.currentIndex >= t.steps.length) {
     await Storage.setCurrentTask(t);
-    await Storage.pushHistory({
-      id: t.id,
-      goal: t.goal,
-      stepsCount: t.steps.length,
-      completedAt: Date.now(),
-      partial: true,
-    });
+    await Storage.pushHistory({ id: t.id, goal: t.goal, stepsCount: t.steps.length, completedAt: Date.now(), partial: true });
     await Storage.clearCurrentTask();
     enterDoneView({ partial: true });
     return;
@@ -238,15 +280,40 @@ $('#btn-skip').addEventListener('click', async () => {
   renderSteps();
 });
 
+// v1 refine
+$('#btn-refine').addEventListener('click', async () => {
+  if (!currentTask) return;
+  const t = currentTask;
+  const idx = t.currentIndex;
+  const step = t.steps[idx];
+  const btn = $('#btn-refine');
+  const prev = btn.innerHTML; btn.disabled = true; btn.textContent = '🍃 拆解中…';
+  try {
+    const settings = await Storage.getSettings();
+    const res = await refineStep(t.goal, step, t.steps, settings);
+    const subs = res.steps.map((s) => ({ ...s, done: false, skipped: false, _refined: true }));
+    // 用子步骤替换当前步骤
+    t.steps.splice(idx, 1, ...subs);
+    await Storage.setCurrentTask(t);
+    renderSteps();
+    // small toast
+    const src = res.source === 'llm' ? 'LLM' : '本地';
+    flash(`✨ 已把这一步再拆成 ${subs.length} 小步（${src}）`);
+  } catch (e) {
+    alert('细化失败：' + (e.message || e));
+  } finally {
+    btn.disabled = false; btn.innerHTML = prev;
+  }
+});
+
 $('#btn-quit').addEventListener('click', async () => {
   if (!confirm('确定放弃当前任务吗？下次再打开时任务就不见啦。')) return;
   await Storage.clearCurrentTask();
   currentTask = null;
-  showView('input');
-  refreshResumeCard();
+  showView('input'); refreshResumeCard();
 });
 
-// ------------------------- Done View -------------------------
+// ---- done view ----
 async function enterDoneView(opts = {}) {
   showView('done');
   const stats = await Storage.getStats();
@@ -255,37 +322,32 @@ async function enterDoneView(opts = {}) {
   $('#stat-food').textContent = String(stats.foodStock);
   $('#pet-food-2').textContent = String(stats.foodStock);
   $('#pet-lv').textContent = String(stats.petLevel);
-  if (opts.partial) {
-    $('#done-sub').textContent = '有几步跳过了没关系，能开始就是胜利～';
-  }
+  if (opts.partial) $('#done-sub').textContent = '有几步跳过了没关系，能开始就是胜利～';
   celebrateAll({ sound: (await Storage.getSettings()).soundEnabled !== false });
 }
 
-$('#btn-new-task').addEventListener('click', () => {
-  $('#task-input').value = '';
-  showView('input');
-  refreshResumeCard();
-});
+$('#btn-new-task').addEventListener('click', () => { $('#task-input').value = ''; showView('input'); refreshResumeCard(); });
 
-// ------------------------- Helpers -------------------------
-function escapeHtml(s) {
-  return String(s || '').replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[c]));
+// ---- helpers ----
+function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+let settingsCache = null;
+function getSettingsCached() { return settingsCache; }
+async function primeSettingsCache() { settingsCache = await Storage.getSettings(); }
+
+function flash(msg) {
+  const t = document.createElement('div');
+  t.className = 'lsk-toast lsk-toast-show';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.classList.remove('lsk-toast-show'); setTimeout(() => t.remove(), 300); }, 1800);
 }
 
-// ------------------------- Boot -------------------------
 (async function boot() {
+  await primeSettingsCache();
   await refreshLLMHint();
   await refreshResumeCard();
   showView('input');
-
-  // 如果有正在进行的任务，直接进入 steps 视图
   const cur = await Storage.getCurrentTask();
-  if (cur && cur.currentIndex < cur.steps.length) {
-    // 但仅当用户之前打开过大屏模式（避免频繁 popup 抢焦点）
-    if (urlParams.get('full') === '1') {
-      enterStepsView(cur);
-    }
-  }
+  if (cur && cur.currentIndex < cur.steps.length && urlParams.get('full') === '1') enterStepsView(cur);
 })();

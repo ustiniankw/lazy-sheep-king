@@ -8,7 +8,6 @@
 </head>
 <body>
   <div id="app" class="app">
-    <!-- 顶部条 -->
     <header class="topbar">
       <div class="brand">
         <img src="../icons/icon-48.png" class="brand-logo" alt="懒羊羊大王" />
@@ -39,7 +38,7 @@
 
       <div class="settings-hint" id="llm-hint">
         <span class="dot"></span>
-        <span id="llm-hint-text">当前使用「本地兜底模板」拆解。<a href="#" id="link-open-options">配置 LLM 更聪明</a></span>
+        <span id="llm-hint-text">加载中…</span>
       </div>
 
       <button id="btn-breakdown" class="btn primary big">
@@ -56,6 +55,32 @@
           <button id="btn-resume" class="btn small primary">继续</button>
           <button id="btn-discard" class="btn small ghost">丢弃</button>
         </div>
+      </div>
+    </section>
+
+    <!-- v1 新增视图：拆解结果预览 & 二次编辑 -->
+    <section class="view view-plan hidden" data-view="plan">
+      <div class="goal-line">
+        <span class="goal-label">目标</span>
+        <span class="goal-text" id="plan-goal">—</span>
+      </div>
+
+      <div class="plan-meta" id="plan-meta"></div>
+
+      <div class="plan-hint">这是懒羊羊帮你拆好的步骤，可以先浏览 / 微调再开始 👇</div>
+
+      <ol class="plan-list" id="plan-list"></ol>
+
+      <div class="plan-actions">
+        <button id="btn-add-step" class="btn tiny ghost">＋ 新增一步</button>
+        <button id="btn-rebreakdown" class="btn tiny ghost">🔁 重新拆</button>
+      </div>
+
+      <div class="plan-cta">
+        <button id="btn-back-input" class="btn ghost">返回</button>
+        <button id="btn-start" class="btn primary big">
+          <span class="btn-emoji">🚀</span>开始，一步一步做！
+        </button>
       </div>
     </section>
 
@@ -80,6 +105,7 @@
         <div class="step-detail" id="step-detail">—</div>
         <div class="step-meta">
           <span class="step-est" id="step-est">~ 3 分钟</span>
+          <button id="btn-refine" class="chip-btn" title="v1：让懒羊羊把这一步再拆一层">🍃 太难？再拆一层</button>
         </div>
       </div>
 
