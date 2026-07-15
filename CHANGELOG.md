@@ -1,5 +1,35 @@
 # CHANGELOG
 
+## v0.3.2 — 完成日历打卡图 + 自定义形象上传体验优化（2026-07-15）
+
+🚀 **在线试玩**：https://<new-deploy-url>
+
+### 新增
+- **📅 完成日历打卡图**：顶栏新增 📅 入口，独立视图展示近 30 / 90 天的完成热力图
+  - 4 张统计卡：完成任务 / 完成步骤 / 连续打卡 / 总养料
+  - 7 行（weekday）× N 列（周）的 CSS Grid 热力图，每格 hover 有 tooltip（日期 / 步数 / 任务 / 养料）
+  - 5 档绿色图例（0 → 10+），30 天 / 90 天分段切换
+  - 连续打卡（currentStreak）= 以今天结尾、连续 steps > 0 的天数；最长连续（longestStreak）= 窗口内最长连续
+- **`lib/calendar.js`**：纯函数模块 `todayKey / daysAgoKey / buildHeatmap / summarize`，ES module 与 `.mjs` 测试均可导入
+- **`stats.dailyLog` 字段**：`{ 'YYYY-MM-DD': { steps, tasks, food } }` 每日打卡日志
+  - `Storage.todayKey()` / `Storage.bumpDaily(patch)` 帮助函数
+  - `addStepCompleted` / `addTaskCompleted` 完成时自动累加当日 steps / tasks / food
+
+### 修正
+- **自定义形象上传体验优化**：Web 预览（iframe）下长按 > 500ms 触发上传不可靠
+  - 移除自定义槽的 `mousedown / mouseup / mouseleave` 长按逻辑
+  - 自定义槽：无图 → 点击直接打开文件选择器；有图 → 点击切为当前宠物
+  - 新增 `🖼 上传/更换形象` 与 `✨ 卡通化` 两个显式按钮
+  - 提示文案由"长按自定义可上传形象" → "自定义 · 点击上传或使用下方按钮更换形象"
+
+### 测试
+- `tests/calendar.test.mjs`：10/10 ✅（todayKey / daysAgoKey / buildHeatmap level 映射 / summarize streak & gap）
+- `tests/tasks.test.mjs`：新增 dailyLog 打卡断言，11/11 ✅
+- 累计单测：**54 全部通过**（calendar 10 / tasks 11 / step_timer 15 / breakdown 10 / pets 8）
+
+### 其它
+- `manifest.json`：0.3.1 → 0.3.2
+
 ## v0.3.1 — 按步骤倒计时 + 动态养料（2026-07-15）
 
 🚀 **在线试玩**：https://e628d62014a7.aime-app.bytedance.net

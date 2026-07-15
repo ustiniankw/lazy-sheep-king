@@ -500,29 +500,16 @@ async function renderPet() {
       <div class="pet-slot-name">${p.name}</div>
       ${unlocked ? '' : '<div class="pet-slot-lock">🔒 待解锁</div>'}
     `;
-    // click 切换 / 长按自定义 → 上传
-    let pressT = 0;
-    slot.addEventListener('mousedown', () => { pressT = Date.now(); });
-    slot.addEventListener('mouseup', async () => {
-      const dt = Date.now() - pressT;
-      if (p.id === 'custom' && dt > 500) {
+    // v0.3.2: 移除长按逻辑，改为纯 click。
+    //  - 自定义槽且还没图 → 打开文件选择器
+    //  - 其它情况 → 直接切换为当前宠物
+    slot.addEventListener('click', async () => {
+      if (p.id === 'custom' && !st.customImageDataUrl) {
         $('#pet-upload').click();
-      } else {
-        await Pets.setActive(p.id);
-        renderPet();
+        return;
       }
-    });
-    // 移动端 tap
-    slot.addEventListener('click', async (e) => {
-      // 兼容单击（非长按情况）
-      if (Date.now() - pressT < 500) {
-        if (p.id === 'custom' && !st.customImageDataUrl) {
-          $('#pet-upload').click();
-          return;
-        }
-        await Pets.setActive(p.id);
-        renderPet();
-      }
+      await Pets.setActive(p.id);
+      renderPet();
     });
     picker.appendChild(slot);
   });
@@ -553,6 +540,64 @@ $('#pet-upload')?.addEventListener('change', async (e) => {
   reader.readAsDataURL(file);
   e.target.value = '';
 });
+
+// v0.3.2: 显式按钮取代长按
+$('#btn-upload-custom')?.addEventListener('click', () => { $('#pet-upload').click(); });
+$('#btn-toggle-cartoon')?.addEventListener('click', async () => {
+  const st = await Pets.toggleCartoonize();
+  flash(st.cartoonize ? '✨ 已开启卡通化' : '已关闭卡通化');
+  renderPet();
+});
+
+// ================= v0.3.2 · 完成日历打卡图 =================
+import { buildHeatmap, summarize, todayKey } from '../lib/calendar.js';
+
+let calDays = 30;
+
+async function enterCalendarView() {
+  showView('calendar');
+  await renderCalendar(calDays);
+}
+
+async function renderCalendar(days = 30) {
+  calDays = days;
+  const stats = await Storage.getStats();
+  const dailyLog = stats.dailyLog || {};
+  const cells = buildHeatmap(dailyLog, days);
+  const sum = summarize(dailyLog, days);
+
+  $('#cal-stat-tasks').textContent = String(sum.totalTasks);
+  $('#cal-stat-steps').textContent = String(sum.totalSteps);
+  $('#cal-stat-streak').textContent = String(sum.currentStreak);
+  $('#cal-stat-food').textContent = String(sum.totalFood);
+  $('#cal-range-label').textContent = `近 ${days} 天`;
+
+  $('#btn-cal-30')?.classList.toggle('active', days === 30);
+  $('#btn-cal-90')?.classList.toggle('active', days === 90);
+
+  // 网格：7 行（按 weekday），列自动按周扩展（CSS grid-auto-flow: column）
+  const grid = $('#cal-heatmap');
+  grid.innerHTML = '';
+  // 先按周对齐：第一个 cell 之前用空占位补齐它所在的星期
+  const firstWeekday = new Date(cells[0].date + 'T00:00:00').getDay();
+  for (let i = 0; i < firstWeekday; i++) {
+    const pad = document.createElement('div');
+    pad.className = 'cal-cell cal-cell-pad';
+    grid.appendChild(pad);
+  }
+  cells.forEach((c) => {
+    const div = document.createElement('div');
+    div.className = 'cal-cell';
+    div.dataset.level = String(c.level);
+    div.title = `${c.date} · ${c.steps} 步 / ${c.tasks} 任务 / ${c.food} 养料`;
+    grid.appendChild(div);
+  });
+}
+
+$('#btn-calendar')?.addEventListener('click', enterCalendarView);
+$('#btn-cal-back')?.addEventListener('click', () => showView('input'));
+$('#btn-cal-30')?.addEventListener('click', () => renderCalendar(30));
+$('#btn-cal-90')?.addEventListener('click', () => renderCalendar(90));
 
 
 // ================= v0.3.1 · 按步骤倒计时 =================

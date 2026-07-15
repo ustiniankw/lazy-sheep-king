@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>懒羊羊大王 · 在线试玩 (v0.3.0)</title>
+  <title>懒羊羊大王 · 在线试玩 (v0.3.2)</title>
   <link rel="icon" href="icons/icon-48.png" />
   <style>
     * { box-sizing: border-box; }
@@ -96,10 +96,10 @@
           <h1>懒羊羊大王 · 执行力浏览器插件</h1>
           <p>把大任务拆成"傻瓜到不能再傻瓜"的小步骤，一步步搞定拖延症 🐑👑</p>
           <div class="badges">
-            <span>v0.3.0</span>
+            <span>v0.3.2</span>
             <span>Manifest V3</span>
             <span>本地 + LLM 双模</span>
-            <span>多任务 & 番茄钟</span>
+            <span>📅 完成日历打卡图</span>
             <span>宠物养成 v2</span>
           </div>
         </div>
@@ -108,14 +108,14 @@
       <section class="card">
         <h2>✨ 已上线功能（点击右侧试玩）</h2>
         <div class="feature-grid">
-          <div class="feature-item"><b>🍅 番茄钟（v0.3.0）</b><br/>25 min 专注 + 5 min 小憩，自动循环，可暂停/结束，结束提示音</div>
+          <div class="feature-item"><b>📅 完成日历打卡图（v0.3.2）</b><br/>30 / 90 天完成热力图 + 连续打卡 streak + 每日养料统计</div>
+          <div class="feature-item"><b>🖼 自定义形象上传优化（v0.3.2）</b><br/>移除长按，改为显式「上传/更换形象」「卡通化」按钮</div>
+          <div class="feature-item"><b>🕐 按步骤倒计时（v0.3.1）</b><br/>每步按 estMinutes 独立倒计时，准时完成 +50% 养料</div>
           <div class="feature-item"><b>🗂 多任务并存（v0.3.0）</b><br/>同时挂 N 个任务，随时切换继续，每个任务独立进度</div>
           <div class="feature-item"><b>😊 宠物心情系统（v0.2.2）</b><br/>4 种心情 + 呼吸/弹跳/摇晃/颤抖 动画</div>
-          <div class="feature-item"><b>🖼 上传图自动卡通化（v0.2.2）</b><br/>CSS filter 轻量卡通化，可开关</div>
           <div class="feature-item"><b>🏠 宠物之家（v0.2.1）</b><br/>🐑 / 🐈 / 🐕 / 🖼️ 自定义，喂养消耗养料</div>
           <div class="feature-item"><b>🧠 LLM 拆解（v0.2.0）</b><br/>OpenAI / DeepSeek / Moonshot / 智谱 / Ollama 一键切换</div>
           <div class="feature-item"><b>✂️ Plan 二次编辑（v0.2.0）</b><br/>增删改 / 上下移 / 整段重拆</div>
-          <div class="feature-item"><b>🍃 太难？再拆一层（v0.2.0）</b><br/>某一步不会做，AI 自动再拆细</div>
           <div class="feature-item"><b>🎉 彩带 & 音效（v0.1）</b><br/>Web Audio 合成叮咚，无外部资源</div>
           <div class="feature-item"><b>⌨️ Alt+L 快捷键 & 大屏模式</b><br/>装到 Chrome 后可用</div>
         </div>
@@ -128,7 +128,9 @@
           <li><span class="roadmap-check">✅</span> <b>v0.2.0</b> · v1 API 集成（多 Provider + Plan 编辑 + refine）</li>
           <li><span class="roadmap-check">✅</span> <b>v0.2.1</b> · v2 Option 1 宠物骨架 + 新图标 / 配色</li>
           <li><span class="roadmap-check">✅</span> <b>v0.2.2</b> · v2.1 心情 & 动画 & 卡通化</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.3.0</b> · 多任务并存 & 番茄钟 <em>← 你在看的版本</em></li>
+          <li><span class="roadmap-check">✅</span> <b>v0.3.0</b> · 多任务并存 & 番茄钟</li>
+          <li><span class="roadmap-check">✅</span> <b>v0.3.1</b> · 按步骤倒计时 & 动态养料</li>
+          <li><span class="roadmap-check">✅</span> <b>v0.3.2</b> · 完成日历打卡图 & 自定义上传优化 <em>← 你在看的版本</em></li>
           <li><span class="roadmap-todo">☐</span> v0.4 · 宠物商店 / 换装 / 好友互动</li>
           <li><span class="roadmap-todo">☐</span> v0.5 · Todoist/Notion/飞书任务导入</li>
         </ul>
@@ -140,15 +142,24 @@
       </section>
 
       <section class="card">
-        <h2>🍅 番茄钟怎么玩</h2>
+        <h2>📅 完成日历打卡图怎么玩</h2>
         <ol>
-          <li>右侧输入一件想干的事（比如「写这周周报」），点「拆成傻瓜步骤」。</li>
-          <li>Plan 页可以微调步骤，点「开始，一步一步做」进入分步页。</li>
-          <li>看到 🍅 卡片 → 点「🍅 开始专注」，25 分钟计时开始，红色主题。</li>
-          <li>时间到 → 铃声响一下 → 自动切到 5 分钟 ☕ 小憩（绿色主题）。</li>
-          <li>小憩结束 → 自动回到专注，累计 🍅 数会自增。</li>
-          <li>专注 / 小憩期间可以 <b>⏸ 暂停</b> 或 <b>■ 结束</b>。</li>
-          <li>时长在 ⚙ 设置页里可以改，专注 1-120 分钟，小憩 1-60 分钟。</li>
+          <li>右侧输入一件想干的事（比如「写这周周报」），拆解后一步一步点 ✅ 完成。</li>
+          <li>每完成一步 / 一个任务，都会自动记进当天的打卡日志（<code>stats.dailyLog</code>）。</li>
+          <li>点顶栏 <b>📅</b> 进入「完成日历打卡图」。</li>
+          <li>顶部 4 张卡片是近 30 天的：完成任务 / 完成步骤 / 连续打卡 / 总养料。</li>
+          <li>下方是热力图：每一格代表一天，绿色越深说明当天完成的步骤越多；hover 有当天明细。</li>
+          <li>右上角切换 <b>30 天 / 90 天</b> 窗口；连续打卡 = 以今天结尾、连续有步骤完成的天数。</li>
+        </ol>
+      </section>
+
+      <section class="card">
+        <h2>🖼 自定义形象上传（v0.3.2 优化）</h2>
+        <ol>
+          <li>点顶栏 <b>🏠</b> 进入宠物之家，选择 <b>自定义</b> 槽。</li>
+          <li>没有图片时，直接点一下就会弹出文件选择器（不再需要长按）。</li>
+          <li>也可以用下方的 <b>🖼 上传/更换形象</b> 按钮随时更换。</li>
+          <li>点 <b>✨ 卡通化</b> 一键开关卡通化滤镜。</li>
         </ol>
       </section>
 

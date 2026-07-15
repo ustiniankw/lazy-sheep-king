@@ -17,6 +17,7 @@
         </div>
       </div>
       <div class="topbar-actions">
+        <button id="btn-calendar" class="icon-btn" title="完成日历打卡图">📅</button>
         <button id="btn-pet" class="icon-btn" title="宠物之家（v2）">🏠</button>
         <button id="btn-open-full" class="icon-btn" title="在新标签页打开大屏模式">⛶</button>
         <button id="btn-options" class="icon-btn" title="设置">⚙</button>
@@ -223,14 +224,56 @@
         <button id="btn-feed" class="btn primary big">🍼 喂一次（消耗 5 养料）</button>
       </div>
 
-      <div class="pet-picker-title">切换宠物 · 长按 <b>自定义</b> 可上传形象</div>
+      <div class="pet-picker-title">切换宠物 · <span id="pet-picker-hint">自定义 · 点击上传或使用下方按钮更换形象</span></div>
       <div class="pet-picker" id="pet-picker"></div>
+
+      <div class="pet-actions-row" id="pet-actions-row">
+        <button id="btn-upload-custom" class="btn btn-small">🖼 上传/更换形象</button>
+        <button id="btn-toggle-cartoon" class="btn btn-small">✨ 卡通化</button>
+      </div>
 
       <input type="file" id="pet-upload" accept="image/*" style="display:none" />
 
       <div class="pet-footer-note">
         v2 骨架已上线，后续 v2.1 计划：宠物动画、心情系统、上传图自动卡通化、宠物商店、好友互动。
       </div>
+    </section>
+
+    <!-- v0.3.2 · 完成日历打卡图 -->
+    <section class="view view-calendar hidden" data-view="calendar">
+      <div class="cal-header">
+        <div class="cal-header-title">📅 完成日历打卡图</div>
+        <button id="btn-cal-back" class="icon-btn" title="返回">← 返回</button>
+      </div>
+
+      <div class="cal-stats">
+        <div class="cal-stat"><div class="cal-stat-num" id="cal-stat-tasks">0</div><div class="cal-stat-label">完成任务</div></div>
+        <div class="cal-stat"><div class="cal-stat-num" id="cal-stat-steps">0</div><div class="cal-stat-label">完成步骤</div></div>
+        <div class="cal-stat"><div class="cal-stat-num" id="cal-stat-streak">0</div><div class="cal-stat-label">连续打卡</div></div>
+        <div class="cal-stat"><div class="cal-stat-num" id="cal-stat-food">0</div><div class="cal-stat-label">总养料</div></div>
+      </div>
+
+      <div class="cal-range">
+        <span class="cal-range-label" id="cal-range-label">近 30 天</span>
+        <div class="cal-range-switch">
+          <button id="btn-cal-30" class="cal-seg active">30 天</button>
+          <button id="btn-cal-90" class="cal-seg">90 天</button>
+        </div>
+      </div>
+
+      <div class="cal-heatmap" id="cal-heatmap"></div>
+
+      <div class="cal-legend">
+        <span class="cal-legend-label">少</span>
+        <span class="cal-cell" data-level="0"></span>
+        <span class="cal-cell" data-level="1"></span>
+        <span class="cal-cell" data-level="2"></span>
+        <span class="cal-cell" data-level="3"></span>
+        <span class="cal-cell" data-level="4"></span>
+        <span class="cal-legend-label">多（10+）</span>
+      </div>
+
+      <div class="cal-footer-note">绿色越深，当天完成的步骤越多 · 连续打卡即当天步骤 &gt; 0</div>
     </section>
   </div>
 
