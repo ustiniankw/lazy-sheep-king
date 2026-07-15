@@ -1,5 +1,74 @@
 # CHANGELOG
 
+## v0.3.3 — 删除修复 + 宠物喂养反馈 + 用户体系基础 + 本地兜底升级（2026-07-15）
+
+🚀 **在线试玩**：https://e5abdadc4674.aime-app.bytedance.net
+
+### 1. 任务丢弃修复
+- **修复“任务丢弃功能无法正常使用”**：
+  - `#tasks-list` 改为事件委托，不再因 `innerHTML` 重渲染导致按钮监听丢失
+  - 删除动作统一按 `data-task-id` 处理，兼容数字 / 字符串 id
+  - popup 内移除易失效的 `window.confirm`，改成“再点一次确认丢弃”交互，3 秒自动回退，也会在点击其它区域时解除武装
+- **当前任务删除收口**：删除当前 active task 时会清空 `activeTaskId`、停止步骤倒计时并回到首页
+- **新增步骤页头部 🗑 按钮**：执行中也能快速丢弃当前任务
+- **删除反馈 toast**：显示 `已丢弃任务 · N 步未完成`
+
+### 2. 宠物喂养反馈系统
+- `lib/pets.js` 扩展状态：`feedLog / totalFedByPet / totalFedAll / lastFedAt / feedStreakDays`
+- `Pets.feed(count, petId)` 现在会：
+  - 扣除养料、增加经验、处理升级
+  - 记录最近 200 条喂养历史
+  - 分宠物累计亲密度（`totalFedByPet`）
+  - 统计总喂养量与连续喂养天数
+  - 返回 rich summary：`delta / newLevel / leveledUp / totalForPet / totalAll / streak`
+- 宠物之家 UI 新增：
+  - 顶部统计条：累计喂养 / 今日喂养 / 连续喂养天数
+  - 每只宠物独立的 ❤️ 亲密度与渐变进度条
+  - 最近 10 条喂养历史折叠面板
+  - rich toast、feed-pop 动画、heart particles、10/50/100/500 里程碑勋章提示
+  - 若步骤倒计时提示音开启，则投喂时播放短 WebAudio jingle
+
+### 3. 多用户区分 + 跨设备同步基础
+- 新增 `lib/user.js`：匿名 profile（`userId / displayName / createdAt / deviceLabel`）
+- `Storage` 新增：
+  - `getSyncEnabled / setSyncEnabled`
+  - sync 安全包装：仅在 `chrome.storage.sync` 可用且 payload < 90KB 时写入；Web 试玩环境自动降级本地模式
+  - sync 范围限制为 `profile / tasks / settings / 精简 stats`，不会把 `history / feedLog / dailyLog` 推上 sync
+- popup 顶栏新增 **👤 我的**：
+  - 查看与编辑用户资料
+  - 复制 userId badge
+  - 启用 / 关闭跨设备同步基础
+  - 导出 / 导入备份 JSON
+  - 生成新用户 ID
+- 备份导入策略：
+  - tasks / history 按 id / 时间去重合并
+  - stats 关键累计字段取较大值合并，`dailyLog` 按日期合并
+  - settings 与 pets 以备份为准
+  - userId 不一致时保留当前身份并提示
+
+### 4. 本地兜底质量升级（最重要）
+- `lib/breakdown.js` 重构本地 fallback：
+  - `normalizeInput(raw)`：去口头前后缀、统一标点/大小写、提取 minutes / kilometers / pages / deadline hints
+  - `classifyIntent(normalized, tokens)`：覆盖学习 / 写作 / 代码 / 会议 / 生活 / 求职 / 规划等 20+ 常见意图
+  - 模板库：每类任务返回 4-8 步、含 `estMinutes` 的具体动作
+  - 多意图合并：两个高置信意图会融合并去重
+  - 相似任务复用：基于最近 successful breakdown skeleton 的 token-overlap 检索
+  - 对外新增 `analyzeInput()` 与 `localBreakdown()`
+- 新增 `tests/breakdown_local.test.mjs`：覆盖 25+ 分类输入、表达变体、步骤结构与 skeleton 复用
+
+### 测试
+- `tests/breakdown.test.mjs`：15/15 ✅
+- `tests/breakdown_local.test.mjs`：36/36 ✅
+- `tests/calendar.test.mjs`：10/10 ✅
+- `tests/pets.test.mjs`：13/13 ✅
+- `tests/step_timer.test.mjs`：15/15 ✅
+- `tests/tasks.test.mjs`：14/14 ✅
+- 累计：**103/103 全部通过**
+
+### 其它
+- `manifest.json`：0.3.2 → 0.3.3
+- `index.html / README.md / options/options.html`：同步更新版本与功能说明
+
 ## v0.3.2 — 完成日历打卡图 + 自定义形象上传体验优化（2026-07-15）
 
 🚀 **在线试玩**：https://539f2546774b.aime-app.bytedance.net

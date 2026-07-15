@@ -13,28 +13,28 @@
         <img src="../icons/icon-48.png" class="brand-logo" alt="懒羊羊大王" />
         <div class="brand-text">
           <div class="brand-title">懒羊羊大王</div>
-          <div class="brand-sub">让懒虫也能一步一步搞定事情</div>
+          <div class="brand-sub">任务拆解 + 宠物养成 + 用户备份</div>
         </div>
       </div>
       <div class="topbar-actions">
         <button id="btn-calendar" class="icon-btn" title="完成日历打卡图">📅</button>
-        <button id="btn-pet" class="icon-btn" title="宠物之家（v2）">🏠</button>
+        <button id="btn-pet" class="icon-btn" title="宠物之家">🏠</button>
+        <button id="btn-my" class="icon-btn" title="我的">👤</button>
         <button id="btn-open-full" class="icon-btn" title="在新标签页打开大屏模式">⛶</button>
         <button id="btn-options" class="icon-btn" title="设置">⚙</button>
       </div>
     </header>
 
-    <!-- 视图：输入任务 -->
     <section class="view view-input" data-view="input">
       <label class="field-label">今天想搞定什么事？</label>
-      <textarea id="task-input" class="task-input" placeholder="例如：把这周的周报写完 / 收拾一下桌面 / 学完 React 第 3 章…" rows="3"></textarea>
+      <textarea id="task-input" class="task-input" placeholder="例如：把这周周报写完 / 收拾一下桌面 / 学完 React 第 3 章 / 准备明天的评审会…" rows="3"></textarea>
 
       <div class="row-between">
         <div class="chips">
           <span class="chip" data-example="把这周的周报写完">📝 写周报</span>
           <span class="chip" data-example="收拾一下我的桌面">🧹 打扫桌面</span>
           <span class="chip" data-example="学完 React 官方教程第 3 章">📚 学 React</span>
-          <span class="chip" data-example="去操场慢跑 30 分钟">🏃 跑步</span>
+          <span class="chip" data-example="去操场慢跑 5km">🏃 跑步</span>
         </div>
       </div>
 
@@ -55,21 +55,19 @@
         </div>
         <div class="resume-actions">
           <button id="btn-resume" class="btn small primary">继续</button>
-          <button id="btn-discard" class="btn small ghost">丢弃</button>
+          <button id="btn-discard" class="btn small ghost" data-confirm-text="再点一次确认丢弃">丢弃</button>
         </div>
       </div>
 
-      <!-- v0.3.0 · 多任务列表 -->
       <div id="tasks-card" class="tasks-card hidden">
         <div class="tasks-card-head">
           <span class="tasks-card-title">🗂 你的多个任务（<span id="tasks-count">0</span>）</span>
-          <span class="tasks-card-sub">点击 · 切到那个任务继续</span>
+          <span class="tasks-card-sub">继续 / 丢弃 都支持一键操作</span>
         </div>
         <ul id="tasks-list" class="tasks-list"></ul>
       </div>
     </section>
 
-    <!-- v1 新增视图：拆解结果预览 & 二次编辑 -->
     <section class="view view-plan hidden" data-view="plan">
       <div class="goal-line">
         <span class="goal-label">目标</span>
@@ -77,9 +75,7 @@
       </div>
 
       <div class="plan-meta" id="plan-meta"></div>
-
       <div class="plan-hint">这是懒羊羊帮你拆好的步骤，可以先浏览 / 微调再开始 👇</div>
-
       <ol class="plan-list" id="plan-list"></ol>
 
       <div class="plan-actions">
@@ -95,11 +91,13 @@
       </div>
     </section>
 
-    <!-- 视图：分步执行 -->
     <section class="view view-steps hidden" data-view="steps">
-      <div class="goal-line">
-        <span class="goal-label">目标</span>
-        <span class="goal-text" id="goal-text">—</span>
+      <div class="goal-line goal-line-step">
+        <div class="goal-line-main">
+          <span class="goal-label">目标</span>
+          <span class="goal-text" id="goal-text">—</span>
+        </div>
+        <button id="btn-step-discard" class="icon-btn danger tiny-icon-btn" title="丢弃当前任务" data-confirm-text="再点一次确认丢弃">🗑</button>
       </div>
 
       <div class="progress-wrap">
@@ -116,16 +114,15 @@
         <div class="step-detail" id="step-detail">—</div>
         <div class="step-meta">
           <span class="step-est" id="step-est">~ 3 分钟</span>
-          <button id="btn-refine" class="chip-btn" title="v1：让懒羊羊把这一步再拆一层">🍃 太难？再拆一层</button>
+          <button id="btn-refine" class="chip-btn" title="让懒羊羊把这一步再拆一层">🍃 太难？再拆一层</button>
         </div>
       </div>
 
       <div class="mascot-line">
         <img src="../icons/icon-128.png" class="mascot" alt="懒羊羊" />
-        <div class="mascot-say" id="mascot-say">"简单到不能再简单啦，来嘛来嘛～"</div>
+        <div class="mascot-say" id="mascot-say">“简单到不能再简单啦，来嘛来嘛～”</div>
       </div>
 
-      <!-- v0.3.1 · 步骤倒计时（替代 v0.3.0 番茄钟） -->
       <div class="stimer-card" id="stimer-card" data-phase="idle">
         <div class="stimer-row">
           <div class="stimer-badge" id="stimer-badge">🕐 步骤倒计时 · 未开始</div>
@@ -155,11 +152,10 @@
 
       <div class="bottom-actions">
         <button id="btn-back-tasks" class="btn tiny ghost">🗂 切到其他任务</button>
-        <button id="btn-quit" class="btn tiny ghost">放弃任务</button>
+        <button id="btn-quit" class="btn tiny ghost" data-confirm-text="再点一次确认放弃">放弃任务</button>
       </div>
     </section>
 
-    <!-- 视图：完成 -->
     <section class="view view-done hidden" data-view="done">
       <div class="done-anim">
         <img src="../icons/icon-256.png" class="mascot-big" alt="懒羊羊大王" />
@@ -179,15 +175,14 @@
         </div>
         <div class="stat">
           <div class="stat-num" id="stat-food">0</div>
-          <div class="stat-label">养料 · v2</div>
+          <div class="stat-label">当前养料</div>
         </div>
       </div>
 
       <div class="pet-preview">
-        <div class="pet-preview-title">🐣 线上宠物预告（v2 即将上线）</div>
+        <div class="pet-preview-title">🐣 宠物反馈已上线</div>
         <div class="pet-preview-body">
-          v2 将支持喂养 <b>🐑 懒羊羊 / 🐈 猫咪 / 🐕 小狗</b>，甚至可以<b>上传自己的形象</b>作为宠物！<br/>
-          用累计步数兑换养料 → 喂宠物 → 看它一天天变大变强～<br/>
+          现在可以查看 <b>累计喂养、今日喂养、连续喂养天数</b>，还有亲密度进度条、喂养历史和投喂动画。<br/>
           当前养料库存：<b id="pet-food-2">0</b> · 等级 Lv.<b id="pet-lv">1</b>
         </div>
       </div>
@@ -198,33 +193,46 @@
       </div>
     </section>
 
-    <!-- 视图：宠物之家 v2 · Option 1 骨架 -->
     <section class="view view-pet hidden" data-view="pet">
       <div class="pet-header">
-        <div class="pet-header-title">🏠 宠物之家 <span class="v2-badge">v2 · beta</span></div>
+        <div class="pet-header-title">🏠 宠物之家 <span class="v2-badge">v0.3.3</span></div>
         <button id="btn-pet-back" class="icon-btn" title="返回">←</button>
       </div>
 
+      <div class="pet-stats-header">
+        🌟 累计养料喂出 <b id="pet-total-all">0</b>
+        <span class="divider">·</span>
+        今日喂养 <b id="pet-total-today">0</b>
+        <span class="divider">·</span>
+        连续 <b id="pet-streak">0</b> 天
+      </div>
+
       <div class="pet-stage" id="pet-stage">
-        <div class="pet-avatar-wrap">
+        <div class="pet-avatar-wrap" id="pet-avatar-wrap">
           <div class="pet-avatar" id="pet-avatar">🐑</div>
-          <div class="pet-mood" id="pet-mood">😊</div>
+          <div class="pet-heart-layer" id="pet-heart-layer"></div>
         </div>
+        <div class="pet-mood" id="pet-mood">😊</div>
         <div class="pet-name" id="pet-name">懒羊羊</div>
         <div class="pet-desc" id="pet-desc">—</div>
       </div>
 
       <div class="pet-stats">
         <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-lv">1</div><div class="pet-stat-label">等级</div></div>
-        <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-food">0</div><div class="pet-stat-label">养料</div></div>
-        <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-fed">0</div><div class="pet-stat-label">喂养次数</div></div>
+        <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-food">0</div><div class="pet-stat-label">养料库存</div></div>
+        <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-fed">0</div><div class="pet-stat-label">累计喂养</div></div>
       </div>
 
       <div class="pet-actions">
         <button id="btn-feed" class="btn primary big">🍼 喂一次（消耗 5 养料）</button>
       </div>
 
-      <div class="pet-picker-title">切换宠物 · <span id="pet-picker-hint">自定义 · 点击上传或使用下方按钮更换形象</span></div>
+      <details class="pet-history" id="pet-history-box">
+        <summary>喂养历史（最近 10 条）</summary>
+        <ul class="pet-history-list" id="pet-history-list"></ul>
+      </details>
+
+      <div class="pet-picker-title">切换宠物 · 每只都会记录独立亲密度</div>
       <div class="pet-picker" id="pet-picker"></div>
 
       <div class="pet-actions-row" id="pet-actions-row">
@@ -235,11 +243,10 @@
       <input type="file" id="pet-upload" accept="image/*" style="display:none" />
 
       <div class="pet-footer-note">
-        v2 骨架已上线，后续 v2.1 计划：宠物动画、心情系统、上传图自动卡通化、宠物商店、好友互动。
+        喂养会累计亲密度、触发投喂动画和勋章提示；最近喂养记录最多保留 200 条。
       </div>
     </section>
 
-    <!-- v0.3.2 · 完成日历打卡图 -->
     <section class="view view-calendar hidden" data-view="calendar">
       <div class="cal-header">
         <div class="cal-header-title">📅 完成日历打卡图</div>
@@ -275,6 +282,59 @@
 
       <div class="cal-footer-note">绿色越深，当天完成的步骤越多 · 连续打卡即当天步骤 &gt; 0</div>
     </section>
+
+    <section class="view view-my hidden" data-view="my">
+      <div class="my-header">
+        <div class="my-header-title">👤 我的</div>
+        <button id="btn-my-back" class="icon-btn" title="返回">←</button>
+      </div>
+
+      <div class="my-card">
+        <div class="my-row">
+          <span class="my-label">用户 ID</span>
+          <code id="my-user-id">usr_******</code>
+        </div>
+        <div class="my-row">
+          <span class="my-label">显示名称</span>
+          <div class="my-inline-grow">
+            <input id="my-display-name" class="my-input" placeholder="给自己起个名字" />
+          </div>
+          <button id="btn-save-display-name" class="btn tiny ghost">保存</button>
+        </div>
+        <div class="my-row">
+          <span class="my-label">设备</span>
+          <span id="my-device-label">Web</span>
+        </div>
+        <div class="my-row">
+          <span class="my-label">创建时间</span>
+          <span id="my-created-at">—</span>
+        </div>
+      </div>
+
+      <div class="my-card">
+        <div class="my-card-title">☁️ 跨设备同步基础</div>
+        <div class="my-card-sub" id="sync-support-text">检测中…</div>
+        <button id="btn-sync-toggle" class="btn ghost">🔄 启用跨设备同步（Chrome 账号）</button>
+      </div>
+
+      <div class="my-card">
+        <div class="my-card-title">📦 备份与恢复</div>
+        <div class="my-actions-grid">
+          <button id="btn-export-backup" class="btn ghost">📤 导出备份</button>
+          <button id="btn-import-backup" class="btn ghost">📥 导入备份</button>
+          <button id="btn-regenerate-user-id" class="btn ghost">🆕 生成新用户 ID</button>
+          <button id="btn-open-options-from-my" class="btn ghost">⚙ 打开完整设置</button>
+        </div>
+        <div class="my-card-sub">导入会按合并策略处理任务 / 历史 / 统计；设置和宠物状态以备份为准。</div>
+      </div>
+
+      <input id="backup-file-input" type="file" accept="application/json" style="display:none" />
+    </section>
+
+    <footer class="footer-bar">
+      <button id="footer-home" class="footer-link">🏠 首页</button>
+      <button id="user-badge" class="user-badge" title="点击复制用户 ID">usr_******</button>
+    </footer>
   </div>
 
   <script src="popup.js" type="module"></script>
