@@ -13,11 +13,15 @@
         <img src="../icons/icon-48.png" class="brand-logo" alt="懒羊羊大王" />
         <div class="brand-text">
           <div class="brand-title">懒羊羊大王</div>
-          <div class="brand-sub">任务拆解 + 宠物养成 + 用户备份</div>
+          <div class="brand-sub">任务拆解 + 宠物养成 + 组队隐私</div>
         </div>
       </div>
       <div class="topbar-actions">
         <button id="btn-calendar" class="icon-btn" title="完成日历打卡图">📅</button>
+        <button id="btn-team" class="icon-btn icon-btn-badge" title="组队模式">
+          <span>👥</span>
+          <span id="team-bell-badge" class="icon-badge hidden">0</span>
+        </button>
         <button id="btn-pet" class="icon-btn" title="宠物之家">🏠</button>
         <button id="btn-my" class="icon-btn" title="我的">👤</button>
         <button id="btn-open-full" class="icon-btn" title="在新标签页打开大屏模式">⛶</button>
@@ -114,6 +118,7 @@
         <div class="step-detail" id="step-detail">—</div>
         <div class="step-meta">
           <span class="step-est" id="step-est">~ 3 分钟</span>
+          <button id="btn-privacy-cycle" class="chip-btn privacy-chip" title="循环切换：公开 / 仅隐藏标题 / 完全隐私">🔓 公开</button>
           <button id="btn-refine" class="chip-btn" title="让懒羊羊把这一步再拆一层">🍃 太难？再拆一层</button>
         </div>
       </div>
@@ -195,7 +200,7 @@
 
     <section class="view view-pet hidden" data-view="pet">
       <div class="pet-header">
-        <div class="pet-header-title">🏠 宠物之家 <span class="v2-badge">v0.3.3</span></div>
+        <div class="pet-header-title">🏠 宠物之家 <span class="v2-badge">v0.3.4</span></div>
         <button id="btn-pet-back" class="icon-btn" title="返回">←</button>
       </div>
 
@@ -283,6 +288,15 @@
       <div class="cal-footer-note">绿色越深，当天完成的步骤越多 · 连续打卡即当天步骤 &gt; 0</div>
     </section>
 
+    <section class="view view-team hidden" data-view="team">
+      <div class="team-header-bar">
+        <div class="team-header-title">👥 组队模式</div>
+        <button id="btn-team-back" class="icon-btn" title="返回">←</button>
+      </div>
+      <div id="team-root"></div>
+      <input id="team-snapshot-file-input" type="file" accept="application/json" style="display:none" />
+    </section>
+
     <section class="view view-my hidden" data-view="my">
       <div class="my-header">
         <div class="my-header-title">👤 我的</div>
@@ -312,6 +326,16 @@
       </div>
 
       <div class="my-card">
+        <div class="my-card-title">🍃 免费 AI 精修</div>
+        <div class="my-card-sub" id="ai-status-text">检测中…</div>
+        <label class="my-toggle-row">
+          <input id="my-ai-rerank-enabled" type="checkbox" />
+          启用 AI 精修（免费）
+        </label>
+        <div class="my-card-sub">本功能仅使用免费方案，不产生任何 API 费用。</div>
+      </div>
+
+      <div class="my-card">
         <div class="my-card-title">☁️ 跨设备同步基础</div>
         <div class="my-card-sub" id="sync-support-text">检测中…</div>
         <button id="btn-sync-toggle" class="btn ghost">🔄 启用跨设备同步（Chrome 账号）</button>
@@ -325,7 +349,7 @@
           <button id="btn-regenerate-user-id" class="btn ghost">🆕 生成新用户 ID</button>
           <button id="btn-open-options-from-my" class="btn ghost">⚙ 打开完整设置</button>
         </div>
-        <div class="my-card-sub">导入会按合并策略处理任务 / 历史 / 统计；设置和宠物状态以备份为准。</div>
+        <div class="my-card-sub">导入会按合并策略处理任务 / 历史 / 统计；设置、宠物与队伍状态以备份为准。</div>
       </div>
 
       <input id="backup-file-input" type="file" accept="application/json" style="display:none" />

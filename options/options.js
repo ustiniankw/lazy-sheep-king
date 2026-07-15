@@ -1,10 +1,12 @@
-// options.js — v1: 支持 Provider 预设，一键切换 OpenAI / DeepSeek / Moonshot / Ollama…
+// options.js — v0.3.4: 免费 AI 精修 + 用户 API 降级配置
 import { Storage } from '../lib/storage.js';
 import { PROVIDERS, findProvider } from '../lib/providers.js';
+import { detectAvailableTier } from '../lib/ai_rerank.js';
 
 const $ = (s) => document.querySelector(s);
 
-// -------- 渲染 Provider 网格 --------
+let currentProviderId = 'openai';
+
 function renderProviders(currentId) {
   const grid = $('#provider-grid');
   grid.innerHTML = '';
@@ -23,19 +25,16 @@ function renderProviders(currentId) {
 
 function applyProvider(id, { userClicked = false } = {}) {
   const p = findProvider(id);
-  // 高亮
   document.querySelectorAll('.provider-tile').forEach((t) => {
     t.classList.toggle('active', t.dataset.id === id);
   });
-  // 自定义 provider 不覆盖用户已经填的值
   if (userClicked && id !== 'custom') {
     $('#llm-baseUrl').value = p.baseUrl;
-    if (!$('#llm-model').value || confirmChangeModel(p)) {
+    if (!$('#llm-model').value || confirmChangeModel()) {
       $('#llm-model').value = p.defaultModel;
     }
     $('#llm-apiKey').setAttribute('placeholder', p.keyHint || 'sk-...');
   }
-  // 更新 model datalist
   const list = $('#model-list');
   list.innerHTML = '';
   (p.models || []).forEach((m) => {
@@ -43,32 +42,35 @@ function applyProvider(id, { userClicked = false } = {}) {
     opt.value = m;
     list.appendChild(opt);
   });
-  // hint
   const hintBase = $('#hint-baseUrl');
   if (p.docsUrl) {
     hintBase.innerHTML = `兼容 OpenAI 协议。<a href="${p.docsUrl}" target="_blank">👉 到 ${p.name} 获取 API Key</a>`;
   } else {
-    hintBase.innerHTML = `兼容 OpenAI 协议的任意端点。`;
+    hintBase.innerHTML = '兼容 OpenAI 协议的任意端点。';
   }
-  $('#current-provider')?.remove();
-  // 记住当前 provider id
   currentProviderId = id;
 }
 
-function confirmChangeModel(p) {
-  // 仅在切换 provider 时静默替换（不弹窗）
+function confirmChangeModel() {
   return true;
 }
 
-let currentProviderId = 'openai';
+async function renderChromeAiStatus() {
+  const pill = $('#chrome-ai-status');
+  const tier = await detectAvailableTier({ llm: { enabled: false, apiKey: '', baseUrl: '' } });
+  const ok = tier === 'chrome-ai';
+  pill.textContent = ok ? '可用' : '不可用（Chrome 138+ / flag / Origin Trial）';
+  pill.className = 'status-pill ' + (ok ? 'ok' : 'warn');
+}
 
-// -------- 加载 --------
 async function load() {
   const s = await Storage.getSettings();
   currentProviderId = s.llm?.providerId || 'openai';
   renderProviders(currentProviderId);
   applyProvider(currentProviderId);
+  await renderChromeAiStatus();
 
+  $('#ai-rerank-enabled').checked = s.aiRerankEnabled !== false;
   $('#llm-enabled').checked = !!s.llm?.enabled;
   $('#llm-baseUrl').value = s.llm?.baseUrl || findProvider(currentProviderId).baseUrl;
   $('#llm-apiKey').value = s.llm?.apiKey || '';
@@ -76,7 +78,7 @@ async function load() {
   $('#sound-enabled').checked = s.soundEnabled !== false;
   $('#step-granularity').value = s.stepGranularity || 'micro';
   $('#show-usage').checked = s.showUsage !== false;
-  // v0.3.1 · 步骤倒计时（替代 v0.3.0 番茄钟）
+
   const st = s.stepTimer || {};
   $('#stimer-auto').checked = !!st.autoStart;
   $('#stimer-sound').checked = st.endSound !== false;
@@ -85,6 +87,7 @@ async function load() {
 
 async function save() {
   const settings = {
+    aiRerankEnabled: $('#ai-rerank-enabled').checked,
     llm: {
       enabled: $('#llm-enabled').checked,
       providerId: currentProviderId,

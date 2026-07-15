@@ -1,5 +1,78 @@
 # CHANGELOG
 
+## v0.3.4 — 组队模式 + 隐私模式 + 免费 AI 精修（2026-07-15）
+
+🚀 **在线试玩**：https://5bd40465996c.aime-app.bytedance.net
+
+### 1. 组队模式 + 隐私模式
+- 新增 `lib/team.js`：
+  - `newTeamCode()`：生成 6 位大写十六进制团队码
+  - `buildMyMemberSnapshot(...)`：输出 `昵称 / 设备 / 今日步数 / 当前任务视图 / 连续打卡 / 最近活跃`
+  - `mergeTeamState(...)`：按 `userId + updatedAt` 合并成员，按 `pokeId` 去重合并 poke
+  - `makePoke(...)`：创建 `pokeId / from / to / message / ts / read`
+- `lib/storage.js` 扩展 team 相关存储：
+  - `team.self = { teamCode, joinedAt, syncUrl? }`
+  - `team.state = { code, members, pokes, updatedAt }`
+  - `settings.team = { defaultPrivacy, pokesSoundOn }`
+  - 任务新增 `privacy` 字段；旧任务在加载时自动按 `settings.team.defaultPrivacy` 补齐
+- popup 顶栏新增 **👥** 入口：
+  - 创建 / 加入队伍
+  - 显示成员卡片：昵称、设备、今日步数、当前任务、连续打卡、最近活跃
+  - 每个队友支持 `🫵 拍一拍`
+  - 队伍快照 `导出 / 导入`
+  - 默认隐私设置 `公开 / 仅隐藏标题 / 完全隐私`
+  - 步骤页新增 🔒 隐私切换按钮，支持单任务循环切换
+- poke 收件箱：
+  - 队伍页顶部新增未读 shelf
+  - 顶栏 **👥** 按钮显示 bell badge 红点数量
+  - 进入 popup / team 视图时可看到收到的拍一拍提醒
+
+### 2. 零成本同步：默认快照，可选免费 URL
+- **默认模式：手动快照交换**
+  - 不依赖任何后端服务
+  - team snapshot JSON 内同时包含成员快照与 poke 状态
+- **可选模式：免费 URL 同步**
+  - 用户主动粘贴 JSONBin.io / npoint.io URL 才启用
+  - popup 打开期间按 60s 节流拉取并尝试 PUT
+  - 无 URL 时完全不发网络请求
+  - 网络失败只显示轻量“同步失败” pill，不打断主流程
+
+### 3. 免费 AI 精修（不用项目方出钱买 GPT）
+- **成本说明**：OpenAI 的 GPT API 需要付费，因此本版本不采用项目方出钱的 GPT 路线。
+- 改为 **完全免费** 的三档实现，按可用性自动降级：
+  1. **Tier 1（推荐）**：Chrome 内置 Prompt API（`LanguageModel` / `chrome.aiOriginTrial.languageModel`），本地推理，不上传数据
+  2. **Tier 2**：用户自己在 v1 API 设置里配置的 provider（如 Ollama 本地 / DeepSeek / Gemini 免费 tier / Groq / 智谱 GLM Flash 等）
+  3. **Tier 3**：全部不可用时保留 v0.3.3 本地兜底结果，不做 rerank
+- 新增 `lib/ai_rerank.js`：
+  - `detectAvailableTier()`
+  - `rerankSteps({subject, steps, hints, intent}, options)`
+- `lib/breakdown.js` 接入策略改为：
+  - 先产出本地步骤
+  - 若 `settings.aiRerankEnabled !== false`，再尝试免费 AI 精修
+  - 精修只替换 `title / detail(tips) / estMinutes`
+  - AI 返回 JSON 非法、步数不足、接口异常时自动保留原始步骤
+- `options` 与 popup「我的」视图新增：
+  - `启用 AI 精修（免费）` 开关
+  - `Chrome 内置 AI：可用 / 不可用` 状态展示
+  - 文案明确说明“本功能仅使用免费方案，不产生任何 API 费用”
+
+### 4. 文档 / 主页 / 版本
+- `manifest.json`：`0.3.3 → 0.3.4`
+- `README.md`：新增「组队与隐私」「AI 精修（免费方案）」章节，并把 roadmap 标记到 v0.3.4
+- `index.html`：主页试玩页新增两大特性文案与 roadmap 更新
+- `options/options.html`：改为免费 AI 精修导向的配置说明
+
+### 5. 测试
+- `tests/ai_rerank.test.mjs`：15/15 ✅
+- `tests/team.test.mjs`：21/21 ✅
+- `tests/breakdown.test.mjs`：15/15 ✅
+- `tests/breakdown_local.test.mjs`：36/36 ✅
+- `tests/calendar.test.mjs`：10/10 ✅
+- `tests/pets.test.mjs`：13/13 ✅
+- `tests/step_timer.test.mjs`：15/15 ✅
+- `tests/tasks.test.mjs`：14/14 ✅
+- 累计：**139/139 全部通过**
+
 ## v0.3.3 — 删除修复 + 宠物喂养反馈 + 用户体系基础 + 本地兜底升级（2026-07-15）
 
 🚀 **在线试玩**：https://e5abdadc4674.aime-app.bytedance.net
