@@ -57,6 +57,15 @@
           <button id="btn-discard" class="btn small ghost">丢弃</button>
         </div>
       </div>
+
+      <!-- v0.3.0 · 多任务列表 -->
+      <div id="tasks-card" class="tasks-card hidden">
+        <div class="tasks-card-head">
+          <span class="tasks-card-title">🗂 你的多个任务（<span id="tasks-count">0</span>）</span>
+          <span class="tasks-card-sub">点击 · 切到那个任务继续</span>
+        </div>
+        <ul id="tasks-list" class="tasks-list"></ul>
+      </div>
     </section>
 
     <!-- v1 新增视图：拆解结果预览 & 二次编辑 -->
@@ -115,6 +124,22 @@
         <div class="mascot-say" id="mascot-say">"简单到不能再简单啦，来嘛来嘛～"</div>
       </div>
 
+      <!-- v0.3.0 · 番茄钟 -->
+      <div class="pomo-card" id="pomo-card" data-phase="idle">
+        <div class="pomo-row">
+          <div class="pomo-badge" id="pomo-badge">🍅 番茄钟 · 未开始</div>
+          <div class="pomo-time" id="pomo-time">--:--</div>
+        </div>
+        <div class="pomo-hint" id="pomo-hint">按下 🍅 开始一段 <b id="pomo-work-mins">25</b> 分钟专注，然后自动进入 <b id="pomo-break-mins">5</b> 分钟小憩。</div>
+        <div class="pomo-actions">
+          <button id="btn-pomo-start" class="btn tiny primary">🍅 开始专注</button>
+          <button id="btn-pomo-pause" class="btn tiny ghost hidden">⏸ 暂停</button>
+          <button id="btn-pomo-resume" class="btn tiny primary hidden">▶ 继续</button>
+          <button id="btn-pomo-stop" class="btn tiny ghost hidden">■ 结束</button>
+          <span class="pomo-cycles">🍅 x <span id="pomo-cycles">0</span></span>
+        </div>
+      </div>
+
       <div class="step-actions">
         <button id="btn-skip" class="btn ghost">跳过这步</button>
         <button id="btn-done" class="btn primary big">
@@ -128,6 +153,7 @@
       </div>
 
       <div class="bottom-actions">
+        <button id="btn-back-tasks" class="btn tiny ghost">🗂 切到其他任务</button>
         <button id="btn-quit" class="btn tiny ghost">放弃任务</button>
       </div>
     </section>

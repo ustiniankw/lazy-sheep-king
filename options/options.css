@@ -87,3 +87,8 @@ h1 { margin: 0; color: #5c3a1e; font-size: 22px; }
 
 footer { text-align: center; margin-top: 30px; color: #8c7455; font-size: 12px; }
 footer a { color: #b0562c; text-decoration: none; }
+
+
+/* v0.3.0 · 番茄钟 3 列布局 */
+.field.row-3 { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 12px; align-items: start; }
+.field.row-3 label.inline { display: flex; align-items: center; gap: 6px; font-weight: 500; margin-top: 4px; }

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>懒羊羊大王 · 在线试玩 (v0.3.0)</title>
+  <link rel="icon" href="icons/icon-48.png" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #fff5d6 0%, #ffe8b8 100%);
+      min-height: 100vh;
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #5c3a1e;
+    }
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px 20px 40px;
+      display: grid;
+      grid-template-columns: 1fr 460px;
+      gap: 28px;
+    }
+    @media (max-width: 900px) {
+      .wrap { grid-template-columns: 1fr; }
+      .side { order: -1; }
+    }
+    header.top {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 18px;
+    }
+    header.top img { width: 56px; height: 56px; border-radius: 14px; box-shadow: 0 6px 20px rgba(176,86,44,0.25); }
+    header.top h1 { margin: 0; font-size: 28px; color: #5c3a1e; }
+    header.top p { margin: 4px 0 0; color: #8c7455; font-size: 14px; }
+    .badges { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .badges span {
+      background: #fff; color: #b0562c; border: 1px solid #f0c96d;
+      padding: 3px 9px; border-radius: 999px; font-size: 12px;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid #f0c96d;
+      border-radius: 18px;
+      padding: 18px 20px;
+      backdrop-filter: blur(4px);
+      margin-bottom: 14px;
+    }
+    .card h2 { margin: 0 0 8px; font-size: 17px; }
+    .card p, .card li { line-height: 1.7; color: #5c3a1e; font-size: 14px; }
+
+    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .feature-item {
+      background: #fff8e4; border: 1px dashed #f0c96d; border-radius: 12px;
+      padding: 10px 12px; font-size: 13px;
+    }
+    .feature-item b { color: #b0562c; }
+
+    .frame-wrap {
+      background: #fff8e4; border: 1px solid #f0c96d;
+      border-radius: 20px; padding: 12px;
+      box-shadow: 0 20px 50px rgba(176, 86, 44, 0.15);
+      position: sticky; top: 24px;
+    }
+    .frame-wrap h3 { margin: 0 0 10px; font-size: 14px; text-align: center; color: #b0562c; }
+    iframe {
+      width: 100%; height: 720px; border: 0; border-radius: 14px;
+      background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+    .frame-tips { font-size: 11px; color: #8c7455; margin-top: 8px; text-align: center; line-height: 1.6; }
+    .frame-tips a { color: #b0562c; }
+
+    .cta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .cta a {
+      background: linear-gradient(135deg, #e6a940, #b0562c);
+      color: #fff8e4; text-decoration: none;
+      padding: 8px 14px; border-radius: 999px;
+      font-size: 13px; font-weight: 600;
+      box-shadow: 0 4px 10px rgba(176,86,44,0.3);
+    }
+    .cta a.ghost {
+      background: #fff; color: #b0562c;
+      border: 1px solid #f0c96d; box-shadow: none;
+    }
+    .roadmap-check { color: #6bb04f; font-weight: 700; }
+    .roadmap-todo  { color: #999; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <main>
+      <header class="top">
+        <img src="icons/icon-128.png" alt="懒羊羊大王" />
+        <div>
+          <h1>懒羊羊大王 · 执行力浏览器插件</h1>
+          <p>把大任务拆成"傻瓜到不能再傻瓜"的小步骤，一步步搞定拖延症 🐑👑</p>
+          <div class="badges">
+            <span>v0.3.0</span>
+            <span>Manifest V3</span>
+            <span>本地 + LLM 双模</span>
+            <span>多任务 & 番茄钟</span>
+            <span>宠物养成 v2</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="card">
+        <h2>✨ 已上线功能（点击右侧试玩）</h2>
+        <div class="feature-grid">
+          <div class="feature-item"><b>🍅 番茄钟（v0.3.0）</b><br/>25 min 专注 + 5 min 小憩，自动循环，可暂停/结束，结束提示音</div>
+          <div class="feature-item"><b>🗂 多任务并存（v0.3.0）</b><br/>同时挂 N 个任务，随时切换继续，每个任务独立进度</div>
+          <div class="feature-item"><b>😊 宠物心情系统（v0.2.2）</b><br/>4 种心情 + 呼吸/弹跳/摇晃/颤抖 动画</div>
+          <div class="feature-item"><b>🖼 上传图自动卡通化（v0.2.2）</b><br/>CSS filter 轻量卡通化，可开关</div>
+          <div class="feature-item"><b>🏠 宠物之家（v0.2.1）</b><br/>🐑 / 🐈 / 🐕 / 🖼️ 自定义，喂养消耗养料</div>
+          <div class="feature-item"><b>🧠 LLM 拆解（v0.2.0）</b><br/>OpenAI / DeepSeek / Moonshot / 智谱 / Ollama 一键切换</div>
+          <div class="feature-item"><b>✂️ Plan 二次编辑（v0.2.0）</b><br/>增删改 / 上下移 / 整段重拆</div>
+          <div class="feature-item"><b>🍃 太难？再拆一层（v0.2.0）</b><br/>某一步不会做，AI 自动再拆细</div>
+          <div class="feature-item"><b>🎉 彩带 & 音效（v0.1）</b><br/>Web Audio 合成叮咚，无外部资源</div>
+          <div class="feature-item"><b>⌨️ Alt+L 快捷键 & 大屏模式</b><br/>装到 Chrome 后可用</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>🗺️ Roadmap</h2>
+        <ul>
+          <li><span class="roadmap-check">✅</span> <b>v0.1</b> · 页面 + 兜底逻辑</li>
+          <li><span class="roadmap-check">✅</span> <b>v0.2.0</b> · v1 API 集成（多 Provider + Plan 编辑 + refine）</li>
+          <li><span class="roadmap-check">✅</span> <b>v0.2.1</b> · v2 Option 1 宠物骨架 + 新图标 / 配色</li>
+          <li><span class="roadmap-check">✅</span> <b>v0.2.2</b> · v2.1 心情 & 动画 & 卡通化</li>
+          <li><span class="roadmap-check">✅</span> <b>v0.3.0</b> · 多任务并存 & 番茄钟 <em>← 你在看的版本</em></li>
+          <li><span class="roadmap-todo">☐</span> v0.4 · 宠物商店 / 换装 / 好友互动</li>
+          <li><span class="roadmap-todo">☐</span> v0.5 · Todoist/Notion/飞书任务导入</li>
+        </ul>
+        <div class="cta">
+          <a href="https://github.com/ustiniankw/lazy-sheep-king" target="_blank">📦 GitHub 仓库</a>
+          <a class="ghost" href="popup/popup.html?full=1" target="_blank">🖥 大屏模式试玩</a>
+          <a class="ghost" href="options/options.html" target="_blank">⚙️ 打开设置页</a>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>🍅 番茄钟怎么玩</h2>
+        <ol>
+          <li>右侧输入一件想干的事（比如「写这周周报」），点「拆成傻瓜步骤」。</li>
+          <li>Plan 页可以微调步骤，点「开始，一步一步做」进入分步页。</li>
+          <li>看到 🍅 卡片 → 点「🍅 开始专注」，25 分钟计时开始，红色主题。</li>
+          <li>时间到 → 铃声响一下 → 自动切到 5 分钟 ☕ 小憩（绿色主题）。</li>
+          <li>小憩结束 → 自动回到专注，累计 🍅 数会自增。</li>
+          <li>专注 / 小憩期间可以 <b>⏸ 暂停</b> 或 <b>■ 结束</b>。</li>
+          <li>时长在 ⚙ 设置页里可以改，专注 1-120 分钟，小憩 1-60 分钟。</li>
+        </ol>
+      </section>
+
+      <section class="card">
+        <h2>🗂 多任务并存怎么玩</h2>
+        <ol>
+          <li>先输入第一个任务并让它开始（比如「写周报」）。</li>
+          <li>在分步页点右下角 <b>🗂 切到其他任务</b> 回到首页。</li>
+          <li>再输入第二个任务并拆解（比如「打扫桌面」），首页现在会显示 <b>🗂 你的多个任务</b>。</li>
+          <li>每张任务卡片显示目标、已完成步数、进度条、创建时间。</li>
+          <li>点「继续」切到那个任务；点 ✕ 丢弃一个任务；每个任务独立记录 <code>currentIndex</code>。</li>
+        </ol>
+        <p style="font-size:12px;color:#8c7455;">
+          👉 <b>提示</b>：本页是 Web 预览，数据存在浏览器 <code>localStorage</code>，不上传任何服务器。<br/>
+          真实 Chrome 扩展下则走 <code>chrome.storage.local</code>，跨会话保持。
+        </p>
+      </section>
+    </main>
+
+    <aside class="side">
+      <div class="frame-wrap">
+        <h3>👇 立即试玩（Web 预览）</h3>
+        <iframe src="popup/popup.html" title="懒羊羊大王 popup 预览"></iframe>
+        <div class="frame-tips">
+          Web 预览版没有 <code>chrome.*</code> API，所以用 <code>localStorage</code> 模拟。<br/>
+          <a href="popup/popup.html?full=1" target="_blank">🖥 用大屏模式打开</a>
+        </div>
+      </div>
+    </aside>
+  </div>
+</body>
+</html>
