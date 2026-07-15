@@ -6,13 +6,21 @@ import { createCountdown, fmt as fmtTimer, calcStepReward, calcTaskCompletionBon
 import { Pets, PET_TYPES, MOOD_META, computeMood, affinityProgress, todayFeedTotal } from '../lib/pets.js';
 import { buildHeatmap, summarize } from '../lib/calendar.js';
 import { ensureProfile, setDisplayName, regenerateUserId } from '../lib/user.js';
+import { PRIVACY, cyclePrivacy, newTeamCode, buildMyMemberSnapshot, mergeTeamState, makePoke } from '../lib/team.js';
+import { detectAvailableTier } from '../lib/ai_rerank.js';
 
-const APP_VERSION = '0.3.3';
+const APP_VERSION = '0.3.4';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const urlParams = new URLSearchParams(location.search);
 const MASCOT_LINES = ['简单到不能再简单啦，来嘛来嘛～', '完成这一小步，就能马上再偷懒一下下！', '就当帮懒羊羊一个忙好吗～', '这一步，闭着眼睛都能做完！', '3、2、1，开动啦！'];
 const PET_MILESTONES = [10, 50, 100, 500];
+const PRIVACY_LABELS = {
+  [PRIVACY.PUBLIC]: '🔓 公开',
+  [PRIVACY.TITLE_HIDDEN]: '🙈 仅隐藏标题',
+  [PRIVACY.FULL_PRIVATE]: '🫥 完全隐私',
+};
+const TEAM_SYNC_INTERVAL_MS = 60_000;
 
 if (urlParams.get('full') === '1') document.body.classList.add('full');
 
@@ -21,6 +29,10 @@ let settingsCache = null;
 let calDays = 30;
 let currentView = 'input';
 let armedDanger = null;
+let teamSyncTimerId = null;
+let teamLastAttemptAt = 0;
+let teamSyncFailed = false;
+let lastUnreadToastKey = '';
 
 function showView(name) {
   currentView = name;
@@ -44,6 +56,36 @@ function formatDateTime(ts) {
 function formatDate(ts) {
   if (!ts) return '—';
   return new Date(ts).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+function formatTimeOnly(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function privacyLabel(privacy) {
+  return PRIVACY_LABELS[privacy] || PRIVACY_LABELS[PRIVACY.PUBLIC];
+}
+
+function updatePrivacyChip(task = currentTask) {
+  const button = $('#btn-privacy-cycle');
+  if (!button) return;
+  const privacy = task?.privacy || settingsCache?.team?.defaultPrivacy || PRIVACY.PUBLIC;
+  button.dataset.privacy = privacy;
+  button.textContent = privacyLabel(privacy);
+}
+
+function getUnreadPokesForState(teamState, selfUserId) {
+  return (teamState?.pokes || []).filter((item) => item?.to === selfUserId && item?.read !== true);
+}
+
+function maybeRelativeTime(ts) {
+  if (!ts) return '刚刚';
+  const delta = Date.now() - Number(ts || 0);
+  if (delta < 60_000) return '刚刚';
+  if (delta < 3_600_000) return `${Math.round(delta / 60_000)} 分钟前`;
+  if (delta < 86_400_000) return `${Math.round(delta / 3_600_000)} 小时前`;
+  return formatDateTime(ts);
 }
 
 function shortUserId(userId = '') {
@@ -136,15 +178,20 @@ function openOptions() {
 
 async function refreshLLMHint() {
   const settings = await Storage.getSettings();
-  const enabled = settings?.llm?.enabled && settings?.llm?.apiKey;
   const hint = $('#llm-hint');
   const text = $('#llm-hint-text');
+  const tier = await detectAvailableTier(settings);
+  const enabled = settings.aiRerankEnabled !== false;
+  const tierText = tier === 'chrome-ai'
+    ? 'Chrome 内置 AI 可用'
+    : tier === 'user-api'
+      ? `将回退到你的 ${escapeHtml(settings.llm?.providerId || 'API')} 配置`
+      : '当前仅使用本地兜底';
+  hint.classList.toggle('ok', enabled && tier !== 'none');
   if (enabled) {
-    hint.classList.add('ok');
-    text.innerHTML = `已启用 LLM 拆解 · <b>${escapeHtml(settings.llm.providerId || 'custom')}</b> / <b>${escapeHtml(settings.llm.model || '')}</b> · <a href="#" class="link-options">修改</a>`;
+    text.innerHTML = `免费 AI 精修：<b>${tierText}</b>，不产生项目方 API 费用。<a href="#" class="link-options">设置</a>`;
   } else {
-    hint.classList.remove('ok');
-    text.innerHTML = `当前使用「本地兜底」拆解。<a href="#" class="link-options">配置 LLM 更聪明</a>`;
+    text.innerHTML = `已关闭 AI 精修，当前仅使用本地兜底。<a href="#" class="link-options">设置</a>`;
   }
   text.querySelector('.link-options')?.addEventListener('click', (event) => {
     event.preventDefault();
@@ -256,6 +303,7 @@ async function doBreakdown(goal) {
       currentIndex: 0,
       createdAt: Date.now(),
       source: result.source,
+      privacy: settings?.team?.defaultPrivacy || PRIVACY.PUBLIC,
       meta: result.meta || null,
       warning: result.warning || null,
     };
@@ -274,11 +322,16 @@ function renderPlanMeta(task) {
   box.innerHTML = '';
   const settings = getSettingsCached();
   const showUsage = settings?.showUsage !== false;
-  const sourceText = task.source === 'llm' ? '🧠 LLM 拆解' : (task.meta?.reusedFromCache ? '♻️ 相似任务复用' : '🍃 本地兜底');
+  const metaSource = task.meta?.source || 'local';
+  const sourceText = metaSource === 'local+chrome-ai'
+    ? '✨ 免费 AI 精修 · Chrome'
+    : metaSource === 'local+user-api'
+      ? '✨ 免费 AI 精修 · 用户 API'
+      : (task.meta?.reusedFromCache ? '♻️ 相似任务复用' : '🍃 本地兜底');
   const parts = [`<span class="meta-tag">${sourceText}</span>`];
-  if (task.warning) parts.push(`<span class="meta-warn" title="${escapeHtml(task.warning)}">⚠ LLM 失败，已 fallback</span>`);
+  if (task.warning) parts.push(`<span class="meta-warn" title="${escapeHtml(task.warning)}">⚠ 精修失败，已回退</span>`);
   if (task.meta?.mergedIntents?.length) parts.push(`<span class="meta-tag">${task.meta.mergedIntents.join(' + ')}</span>`);
-  if (showUsage && task.meta?.elapsedMs) parts.push(`<span class="meta-tag">${task.meta.elapsedMs} ms</span>`);
+  if (showUsage && (task.meta?.elapsedMs || task.meta?.latencyMs)) parts.push(`<span class="meta-tag">${task.meta.elapsedMs || task.meta.latencyMs} ms</span>`);
   if (showUsage && task.meta?.model) parts.push(`<span class="meta-tag">${escapeHtml(task.meta.model)}</span>`);
   if (showUsage && task.meta?.usage) {
     const usage = task.meta.usage;
@@ -385,6 +438,7 @@ async function renderSteps() {
   $('#step-title').textContent = stepItem.title;
   $('#step-detail').textContent = stepItem.detail || '就这么点事儿，交给你啦！';
   $('#step-est').textContent = `~ ${stepItem.estMinutes || 3} 分钟`;
+  updatePrivacyChip(task);
   $('#mascot-say').textContent = `“${MASCOT_LINES[index % MASCOT_LINES.length]}”`;
 
   const list = $('#steps-list');
@@ -596,6 +650,372 @@ async function enterCalendarView() {
   await renderCalendar(calDays);
 }
 
+function normalizeTeamSyncEndpoint(rawUrl) {
+  const value = String(rawUrl || '').trim();
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    const headers = { 'Content-Type': 'application/json' };
+    if (/jsonbin\.io$/i.test(url.hostname)) {
+      const path = url.pathname.replace(/\/latest$/i, '');
+      const match = path.match(/\/(?:v3\/b\/)?([A-Za-z0-9]+)/i);
+      if (!match) return null;
+      const binId = match[1];
+      const accessKey = url.searchParams.get('accessKey') || url.searchParams.get('x-access-key');
+      const masterKey = url.searchParams.get('masterKey') || url.searchParams.get('x-master-key');
+      if (accessKey) headers['X-Access-Key'] = accessKey;
+      if (masterKey) headers['X-Master-Key'] = masterKey;
+      return {
+        getUrl: `https://api.jsonbin.io/v3/b/${binId}/latest?meta=false`,
+        putUrl: `https://api.jsonbin.io/v3/b/${binId}`,
+        headers,
+      };
+    }
+    return { getUrl: url.href, putUrl: url.href, headers };
+  } catch {
+    return null;
+  }
+}
+
+function unwrapTeamSyncPayload(payload) {
+  if (payload && typeof payload === 'object' && payload.record && typeof payload.record === 'object') {
+    return payload.record;
+  }
+  return payload;
+}
+
+async function ensureLocalTeamState() {
+  const [teamSelf, teamState, profile, stats, tasks, activeTask, settings] = await Promise.all([
+    Storage.getTeamSelf(),
+    Storage.getTeamState(),
+    ensureProfile(),
+    Storage.getStats(),
+    Storage.getTasks(),
+    Storage.getActiveTask(),
+    Storage.getSettings(),
+  ]);
+  if (!teamSelf.teamCode) return { teamSelf, teamState };
+  const snapshot = buildMyMemberSnapshot({
+    profile,
+    stats,
+    tasks,
+    dailyLog: stats.dailyLog,
+    activeTask,
+    privacy: activeTask?.privacy || settings?.team?.defaultPrivacy || PRIVACY.PUBLIC,
+  });
+  const nextState = mergeTeamState(teamState || {}, {
+    code: teamSelf.teamCode,
+    members: { [snapshot.userId]: snapshot },
+    pokes: [],
+    updatedAt: Date.now(),
+  });
+  if (JSON.stringify(nextState) !== JSON.stringify(teamState || {})) {
+    await Storage.setTeamState(nextState);
+  }
+  return { teamSelf, teamState: nextState };
+}
+
+async function updateTeamBellBadge() {
+  const [profile, teamState] = await Promise.all([ensureProfile(), Storage.getTeamState()]);
+  const unread = getUnreadPokesForState(teamState, profile.userId);
+  const badge = $('#team-bell-badge');
+  badge.textContent = String(unread.length);
+  badge.classList.toggle('hidden', unread.length === 0);
+}
+
+async function maybeToastUnreadPokes() {
+  const [profile, teamState, settings] = await Promise.all([ensureProfile(), Storage.getTeamState(), Storage.getSettings()]);
+  const unread = getUnreadPokesForState(teamState, profile.userId);
+  const toastKey = unread.map((item) => item.pokeId).join(',');
+  if (!unread.length || toastKey === lastUnreadToastKey) return;
+  lastUnreadToastKey = toastKey;
+  flash(unread.length === 1 ? '收到 1 个拍一拍 👀' : `收到 ${unread.length} 个拍一拍 👀`);
+  if (settings?.team?.pokesSoundOn !== false) {
+    try { playFeedJingle(); } catch {}
+  }
+}
+
+async function syncTeamState({ force = false } = {}) {
+  const { teamSelf, teamState } = await ensureLocalTeamState();
+  if (!teamSelf.teamCode || !teamSelf.syncUrl) return teamState;
+  if (!force && Date.now() - teamLastAttemptAt < TEAM_SYNC_INTERVAL_MS) return teamState;
+  teamLastAttemptAt = Date.now();
+  const endpoint = normalizeTeamSyncEndpoint(teamSelf.syncUrl);
+  if (!endpoint) {
+    teamSyncFailed = true;
+    return teamState;
+  }
+
+  try {
+    let remoteState = null;
+    try {
+      const res = await fetch(endpoint.getUrl, { headers: endpoint.headers });
+      if (res.ok) remoteState = unwrapTeamSyncPayload(await res.json());
+    } catch {}
+
+    const merged = mergeTeamState(teamState, remoteState || {});
+    merged.code = teamSelf.teamCode || merged.code;
+    merged.updatedAt = Date.now();
+    await Storage.setTeamState(merged);
+
+    const pushRes = await fetch(endpoint.putUrl, {
+      method: 'PUT',
+      headers: endpoint.headers,
+      body: JSON.stringify(merged),
+    });
+    if (!pushRes.ok) throw new Error(`sync http ${pushRes.status}`);
+    teamSyncFailed = false;
+    return merged;
+  } catch (error) {
+    console.warn('[懒羊羊大王] team sync failed:', error?.message || error);
+    teamSyncFailed = true;
+    return teamState;
+  } finally {
+    await updateTeamBellBadge();
+    if (currentView === 'team') await renderTeam();
+  }
+}
+
+async function ensureTeamSyncLoop() {
+  const teamSelf = await Storage.getTeamSelf();
+  if (teamSyncTimerId) {
+    clearInterval(teamSyncTimerId);
+    teamSyncTimerId = null;
+  }
+  if (!teamSelf.syncUrl) return;
+  teamSyncTimerId = window.setInterval(() => {
+    if (currentView !== 'team' && urlParams.get('full') !== '1') return;
+    syncTeamState().catch(() => {});
+  }, TEAM_SYNC_INTERVAL_MS);
+}
+
+async function exportTeamSnapshot() {
+  const { teamSelf, teamState } = await ensureLocalTeamState();
+  if (!teamSelf.teamCode) {
+    flash('还没有队伍可以导出');
+    return;
+  }
+  const payload = {
+    version: APP_VERSION,
+    type: 'team-snapshot',
+    exportedAt: Date.now(),
+    teamCode: teamSelf.teamCode,
+    teamState,
+  };
+  downloadJson(payload, `lazy-sheep-king-team-${teamSelf.teamCode}-${new Date().toISOString().slice(0, 10)}.json`);
+  flash('队伍快照已导出');
+}
+
+async function importTeamSnapshot(file) {
+  const text = await file.text();
+  const payload = JSON.parse(text);
+  const incoming = payload?.teamState || payload;
+  if (!incoming?.code) throw new Error('不是有效的队伍快照');
+  const currentSelf = await Storage.getTeamSelf();
+  if (!currentSelf.teamCode) {
+    await Storage.setTeamSelf({ teamCode: incoming.code, joinedAt: Date.now() });
+  }
+  const localState = await Storage.getTeamState();
+  await Storage.setTeamState(mergeTeamState(localState, incoming));
+  await ensureLocalTeamState();
+  await updateTeamBellBadge();
+  if (currentView === 'team') await renderTeam();
+  flash('队伍快照已导入');
+}
+
+async function createTeamFlow() {
+  const code = newTeamCode();
+  await Storage.setTeamSelf({ teamCode: code, joinedAt: Date.now(), syncUrl: '' });
+  await Storage.setTeamState({ code, members: {}, pokes: [], updatedAt: Date.now() });
+  await ensureLocalTeamState();
+  await ensureTeamSyncLoop();
+  await updateTeamBellBadge();
+  const copied = await copyText(code);
+  flash(copied ? `已创建队伍 ${code}，团队码已复制` : `已创建队伍 ${code}`);
+  await renderTeam();
+}
+
+async function joinTeamFlow(codeInput) {
+  const code = String(codeInput || '').trim().toUpperCase();
+  if (!/^[0-9A-F]{6}$/.test(code)) {
+    flash('请输入 6 位十六进制队伍码');
+    return;
+  }
+  await Storage.setTeamSelf({ teamCode: code, joinedAt: Date.now() });
+  await Storage.setTeamState({ code, members: {}, pokes: [], updatedAt: Date.now() });
+  await ensureLocalTeamState();
+  await ensureTeamSyncLoop();
+  flash(`已加入队伍 ${code}`);
+  await renderTeam();
+}
+
+async function markPokeRead(pokeId) {
+  const teamState = await Storage.getTeamState();
+  teamState.pokes = (teamState.pokes || []).map((item) => (item.pokeId === pokeId ? { ...item, read: true } : item));
+  await Storage.setTeamState(teamState);
+  await syncTeamState({ force: true });
+  await updateTeamBellBadge();
+  await renderTeam();
+}
+
+async function sendTeamPoke(toUserId) {
+  const [profile, teamState] = await Promise.all([ensureProfile(), Storage.getTeamState()]);
+  if (!toUserId || toUserId === profile.userId) return;
+  const poke = makePoke({ from: profile.userId, to: toUserId, message: '继续冲呀！' });
+  const merged = mergeTeamState(teamState, { code: teamState.code, members: {}, pokes: [poke], updatedAt: Date.now() });
+  await Storage.setTeamState(merged);
+  await syncTeamState({ force: true });
+  flash('已拍队友 · 待其打开看到');
+  if (currentView === 'team') await renderTeam();
+}
+
+async function saveTeamSyncUrl(value) {
+  await Storage.setTeamSelf({ syncUrl: String(value || '').trim() });
+  teamSyncFailed = false;
+  await ensureTeamSyncLoop();
+  await syncTeamState({ force: true });
+  await renderTeam();
+}
+
+async function saveTeamDefaultPrivacy(value) {
+  settingsCache = await Storage.setSettings({ team: { defaultPrivacy: value } });
+  await refreshLLMHint();
+  if (currentTask && !currentTask.privacy) {
+    currentTask.privacy = value;
+    await persistCurrentTask();
+  }
+  await renderTeam();
+}
+
+async function renderTeam() {
+  showView('team');
+  const root = $('#team-root');
+  const [{ teamSelf, teamState }, profile, settings] = await Promise.all([
+    ensureLocalTeamState(),
+    ensureProfile(),
+    Storage.getSettings(),
+  ]);
+  const unread = getUnreadPokesForState(teamState, profile.userId);
+
+  if (!teamSelf.teamCode) {
+    root.innerHTML = `
+      <div class="team-empty">
+        <div class="team-empty-title">和伙伴一起打卡更有劲</div>
+        <div class="team-empty-sub">创建一个 6 位队伍码，或输入队伍码加入。默认使用“手动快照交换”，零后端、零成本。</div>
+        <div class="team-empty-actions">
+          <button class="btn primary" data-team-act="create">创建组队</button>
+          <button class="btn ghost" data-team-act="join-submit">加入组队</button>
+        </div>
+        <div class="team-join-row">
+          <input id="team-join-code" maxlength="6" placeholder="输入 6 位队伍码，如 A1B2C3" />
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const members = Object.values(teamState.members || {}).sort((a, b) => {
+    if (a.userId === profile.userId) return -1;
+    if (b.userId === profile.userId) return 1;
+    return Number(b.updatedAt || 0) - Number(a.updatedAt || 0);
+  });
+
+  root.innerHTML = `
+    <div class="team-card">
+      <div class="team-dashboard-head">
+        <div>
+          <button class="team-code-btn" data-team-act="copy-code">团队码 ${escapeHtml(teamSelf.teamCode)}</button>
+          <div class="team-meta-line">
+            <span>成员数 ${members.length}</span>
+            <span>上次同步 ${formatTimeOnly(teamState.updatedAt)}</span>
+          </div>
+        </div>
+        <div class="team-status-pill ${teamSyncFailed ? 'fail' : ''}">${teamSyncFailed ? '同步失败' : '手动快照 / 免费 URL 同步'}</div>
+      </div>
+      <div class="team-sync-note">默认推荐：点击下方“导出队伍快照”，把 JSON 发给队友，再由对方“导入队伍快照”。</div>
+    </div>
+
+    <div class="team-card">
+      <div class="team-pokes-title">🔔 收到的拍一拍${unread.length ? `（${unread.length}）` : ''}</div>
+      <div class="team-pokes-list">
+        ${unread.length ? unread.map((item) => {
+          const fromMember = teamState.members?.[item.from];
+          return `
+            <div class="team-poke-item">
+              <div class="team-poke-item-main">
+                <div class="team-poke-item-title">${escapeHtml(fromMember?.name || item.from)} 拍了拍你</div>
+                <div class="team-poke-item-sub">${escapeHtml(item.message || '继续冲呀！')} · ${maybeRelativeTime(item.ts)}</div>
+              </div>
+              <button class="btn tiny ghost" data-team-act="read-poke" data-poke-id="${escapeHtml(item.pokeId)}">👍 已收到</button>
+            </div>
+          `;
+        }).join('') : '<div class="team-no-pokes">暂时没有新的拍一拍，继续冲呀～</div>'}
+      </div>
+    </div>
+
+    <div class="team-card">
+      <div class="team-pokes-title">👥 队友列表</div>
+      <div class="team-members">
+        ${members.map((member) => `
+          <div class="team-member-card ${member.userId === profile.userId ? 'self' : ''}">
+            <div class="team-member-main">
+              <div class="team-member-head">
+                <div class="team-member-name">
+                  <span>${escapeHtml(member.name || '懒羊羊伙伴')}</span>
+                  ${member.userId === profile.userId ? '<span class="team-self-tag">我</span>' : ''}
+                </div>
+                <span class="team-device-chip">${escapeHtml(member.device || 'Web')}</span>
+              </div>
+              <div class="team-member-task">
+                <span class="team-task-chip ${escapeHtml(member.activeTaskView?.privacy || 'public')}">${privacyLabel(member.activeTaskView?.privacy || PRIVACY.PUBLIC)}</span>
+                <span>${escapeHtml(member.activeTaskView?.label || '空闲中')}</span>
+              </div>
+              <div class="team-member-stats">
+                <span class="team-stat-mini">今日已完成 ${Number(member.todaySteps || 0)} 步</span>
+                <span class="team-stat-mini">连续打卡 ${Number(member.streak || 0)} 天</span>
+                <span class="team-stat-mini">最近活跃 ${escapeHtml(maybeRelativeTime(member.updatedAt || member.lastActiveAt))}</span>
+              </div>
+            </div>
+            <div class="team-member-action">
+              <button class="btn tiny ${member.userId === profile.userId ? 'ghost' : 'primary'}" data-team-act="poke" data-user-id="${escapeHtml(member.userId)}" ${member.userId === profile.userId ? 'disabled' : ''}>🫵 拍一拍</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="team-actions-grid">
+        <button class="btn ghost" data-team-act="export-snapshot">📤 导出队伍快照</button>
+        <button class="btn ghost" data-team-act="import-snapshot">📥 导入队伍快照</button>
+      </div>
+      <div class="team-sync-box">
+        <div class="team-sync-head">
+          <div class="team-pokes-title" style="margin-bottom:0;">🔗 配置 URL 同步（免费）</div>
+          <button class="btn tiny ghost" data-team-act="sync-now">立即同步</button>
+        </div>
+        <div class="team-sync-row">
+          <input id="team-sync-url" placeholder="粘贴 JSONBin.io / npoint.io URL；留空则完全不走网络" value="${escapeHtml(teamSelf.syncUrl || '')}" />
+          <button class="btn tiny primary" data-team-act="save-sync-url">保存</button>
+        </div>
+        <div class="team-sync-note">若 URL 为空，则不会发起任何网络请求。网络错误会静默处理，只在这里显示“同步失败”小提示。</div>
+      </div>
+      <div class="team-setting-row">
+        <span class="team-setting-label">默认隐私</span>
+        <select id="team-default-privacy">
+          <option value="public" ${settings?.team?.defaultPrivacy === PRIVACY.PUBLIC ? 'selected' : ''}>公开</option>
+          <option value="title-hidden" ${settings?.team?.defaultPrivacy === PRIVACY.TITLE_HIDDEN ? 'selected' : ''}>仅隐藏标题</option>
+          <option value="full-private" ${settings?.team?.defaultPrivacy === PRIVACY.FULL_PRIVATE ? 'selected' : ''}>完全隐私</option>
+        </select>
+      </div>
+      <div class="team-muted">当前任务的 🔒 按钮可单独覆盖默认隐私设置。</div>
+    </div>
+  `;
+}
+
+async function enterTeamView() {
+  await renderTeam();
+  await syncTeamState({ force: true });
+  await maybeToastUnreadPokes();
+}
+
 function mergeTasks(localTasks = [], incomingTasks = []) {
   const map = new Map();
   [...localTasks, ...incomingTasks].forEach((task) => {
@@ -699,12 +1119,15 @@ async function importBackup(file) {
     dailyLog: mergeDailyLog(local.stats.dailyLog || {}, incomingStats.dailyLog || {}),
   };
   const mergedRecent = mergeRecentBreakdowns(local.recentBreakdowns, payload.recentBreakdowns || []);
+  const mergedTeamState = mergeTeamState(local.teamState || {}, payload.teamState || {});
 
   await Storage.setSettings(payload.settings || local.settings);
   await Storage.setTasks(mergedTasks);
   await Storage.setHistory(mergedHistory);
   await Storage.setStats(mergedStats);
   await Storage.setRecentBreakdowns(mergedRecent);
+  await Storage.setTeamState(mergedTeamState);
+  await Storage.setTeamSelf(payload.teamSelf || local.teamSelf || {});
   await Pets.replaceState(payload.pets || localPets);
 
   if (!mismatch && payload.profile) {
@@ -726,6 +1149,7 @@ async function importBackup(file) {
   await refreshLLMHint();
   await refreshResumeCard();
   await renderMyView();
+  await updateTeamBellBadge();
   currentTask = candidateActiveId ? mergedTasks.find((task) => sameId(task.id, candidateActiveId)) || null : null;
   flash(mismatch ? '已导入备份（保留当前用户 ID）' : '备份导入完成');
 }
@@ -733,10 +1157,21 @@ async function importBackup(file) {
 async function renderMyView() {
   const profile = await ensureProfile();
   const syncEnabled = await Storage.getSyncEnabled();
+  const settings = await Storage.getSettings();
+  settingsCache = settings;
+  const tier = await detectAvailableTier(settings);
   $('#my-user-id').textContent = profile.userId || '—';
   $('#my-display-name').value = profile.displayName || '';
   $('#my-device-label').textContent = profile.deviceLabel || 'Web';
   $('#my-created-at').textContent = formatDate(profile.createdAt);
+  $('#my-ai-rerank-enabled').checked = settings.aiRerankEnabled !== false;
+  $('#ai-status-text').innerHTML = settings.aiRerankEnabled === false
+    ? '已关闭 AI 精修，当前只使用本地兜底。'
+    : tier === 'chrome-ai'
+      ? 'Chrome 内置 AI：<b>可用</b>，优先本地推理，不上传任务内容。'
+      : tier === 'user-api'
+        ? `Chrome 内置 AI 暂不可用，将回退到你配置的 <b>${escapeHtml(settings.llm?.providerId || 'API')}</b>。`
+        : 'Chrome 内置 AI：<b>不可用</b>（Chrome 138+ / flag / Origin Trial）；未配置用户 API 时会直接回退本地兜底。';
   const supportText = $('#sync-support-text');
   const syncButton = $('#btn-sync-toggle');
   if (isSyncSupported()) {
@@ -841,10 +1276,12 @@ $('#btn-options').addEventListener('click', openOptions);
 $('#btn-my').addEventListener('click', enterMyView);
 $('#btn-pet').addEventListener('click', enterPetView);
 $('#btn-calendar').addEventListener('click', enterCalendarView);
+$('#btn-team').addEventListener('click', enterTeamView);
 $('#footer-home').addEventListener('click', showHome);
 $('#btn-my-back').addEventListener('click', showHome);
 $('#btn-pet-back').addEventListener('click', showHome);
 $('#btn-cal-back').addEventListener('click', showHome);
+$('#btn-team-back').addEventListener('click', showHome);
 $('#btn-open-options-from-my').addEventListener('click', openOptions);
 $('#btn-goto-pet').addEventListener('click', enterPetView);
 
@@ -895,6 +1332,55 @@ $('#tasks-list').addEventListener('click', async (event) => {
   if (!requiresSecondClick(deleteBtn)) return;
   resetDangerArming();
   await discardTaskById(deleteBtn.dataset.taskId);
+});
+
+$('#team-root').addEventListener('click', async (event) => {
+  const actionEl = event.target.closest('[data-team-act]');
+  if (!actionEl) return;
+  const action = actionEl.dataset.teamAct;
+  if (action === 'create') {
+    await createTeamFlow();
+    return;
+  }
+  if (action === 'join-submit') {
+    await joinTeamFlow($('#team-join-code')?.value);
+    return;
+  }
+  if (action === 'copy-code') {
+    const teamSelf = await Storage.getTeamSelf();
+    const ok = await copyText(teamSelf.teamCode || '');
+    flash(ok ? `已复制团队码 ${teamSelf.teamCode}` : '复制失败，请手动复制');
+    return;
+  }
+  if (action === 'export-snapshot') {
+    await exportTeamSnapshot();
+    return;
+  }
+  if (action === 'import-snapshot') {
+    $('#team-snapshot-file-input').click();
+    return;
+  }
+  if (action === 'save-sync-url') {
+    await saveTeamSyncUrl($('#team-sync-url')?.value);
+    return;
+  }
+  if (action === 'sync-now') {
+    await syncTeamState({ force: true });
+    return;
+  }
+  if (action === 'poke') {
+    await sendTeamPoke(actionEl.dataset.userId);
+    return;
+  }
+  if (action === 'read-poke') {
+    await markPokeRead(actionEl.dataset.pokeId);
+  }
+});
+
+$('#team-root').addEventListener('change', async (event) => {
+  if (event.target.id === 'team-default-privacy') {
+    await saveTeamDefaultPrivacy(event.target.value);
+  }
 });
 
 $('#btn-add-step').addEventListener('click', async () => {
@@ -999,6 +1485,15 @@ $('#btn-refine').addEventListener('click', async () => {
   }
 });
 
+$('#btn-privacy-cycle').addEventListener('click', async () => {
+  if (!currentTask) return;
+  currentTask.privacy = cyclePrivacy(currentTask.privacy || settingsCache?.team?.defaultPrivacy || PRIVACY.PUBLIC);
+  await persistCurrentTask();
+  updatePrivacyChip(currentTask);
+  if (currentView === 'team') await renderTeam();
+  flash(`当前任务隐私：${privacyLabel(currentTask.privacy)}`);
+});
+
 async function handleDiscardCurrent(button) {
   const taskId = button.dataset.taskId || currentTask?.id;
   if (!taskId) return;
@@ -1065,6 +1560,13 @@ $('#btn-save-display-name').addEventListener('click', async () => {
   flash('昵称已保存');
 });
 
+$('#my-ai-rerank-enabled').addEventListener('change', async (event) => {
+  settingsCache = await Storage.setSettings({ aiRerankEnabled: event.target.checked });
+  await refreshLLMHint();
+  await renderMyView();
+  flash(event.target.checked ? '已启用免费 AI 精修' : '已关闭 AI 精修');
+});
+
 $('#btn-sync-toggle').addEventListener('click', async () => {
   if (!isSyncSupported()) {
     flash('当前环境不支持跨设备同步');
@@ -1085,6 +1587,17 @@ $('#backup-file-input').addEventListener('change', async (event) => {
     await importBackup(file);
   } catch (error) {
     flash(`导入失败：${error.message || error}`, { big: true, duration: 2400 });
+  } finally {
+    event.target.value = '';
+  }
+});
+$('#team-snapshot-file-input').addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    await importTeamSnapshot(file);
+  } catch (error) {
+    flash(`队伍导入失败：${error.message || error}`, { big: true, duration: 2400 });
   } finally {
     event.target.value = '';
   }
@@ -1114,6 +1627,10 @@ renderStimer(0, stimer.snapshot());
   await refreshLLMHint();
   await refreshResumeCard();
   await refreshUserBadge();
+  await updateTeamBellBadge();
+  await ensureTeamSyncLoop();
+  await syncTeamState({ force: true }).catch(() => {});
+  await maybeToastUnreadPokes();
   showView('input');
   const current = await Storage.getCurrentTask();
   if (current && current.currentIndex < current.steps.length && urlParams.get('full') === '1') {
