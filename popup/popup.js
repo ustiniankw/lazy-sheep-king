@@ -353,7 +353,7 @@ function flash(msg) {
 })();
 
 // ================= v2 · Option 1 · 宠物系统骨架 =================
-import { Pets, PET_TYPES } from '../lib/pets.js';
+import { Pets, PET_TYPES, MOOD_META, computeMood } from '../lib/pets.js';
 
 async function enterPetView() {
   showView('pet');
@@ -367,12 +367,20 @@ async function renderPet() {
 
   // avatar
   const avatar = $('#pet-avatar');
+  const mood = computeMood(st, stats);
+  const meta = MOOD_META[mood] || MOOD_META.normal;
+  // 心情动画：清空旧的 mood-* class 再赋新的
+  avatar.className = 'pet-avatar mood-' + meta.anim;
+  const cartoonFilter = (st.cartoonize !== false)
+    ? 'contrast(1.15) saturate(1.35) brightness(1.02)'
+    : 'none';
   if (st.activeId === 'custom' && st.customImageDataUrl) {
-    avatar.innerHTML = `<img src="${st.customImageDataUrl}" alt="custom pet" />`;
+    avatar.innerHTML = `<img src="${st.customImageDataUrl}" alt="custom pet" style="filter:${cartoonFilter}" />`;
     $('#pet-name').textContent = st.customName || '我的宠物';
-    $('#pet-desc').textContent = '你上传的专属形象～ 一起加油！';
+    $('#pet-desc').textContent = (st.cartoonize !== false)
+      ? '你上传的专属形象（已自动卡通化 ✨）'
+      : '你上传的专属形象～ 一起加油！';
   } else if (st.activeId === 'sheep') {
-    // 用插件 mascot 作为懒羊羊头像
     avatar.innerHTML = `<img src="../icons/icon-256.png" alt="sheep" />`;
     $('#pet-name').textContent = type.name;
     $('#pet-desc').textContent = type.desc;
@@ -381,7 +389,7 @@ async function renderPet() {
     $('#pet-name').textContent = type.name;
     $('#pet-desc').textContent = type.desc;
   }
-  $('#pet-mood').textContent = { happy: '😊', normal: '🙂', sad: '😴' }[st.mood] || '🙂';
+  $('#pet-mood').textContent = `${meta.emoji} ${meta.say}`;
 
   $('#pet-stat-lv').textContent = String(stats.petLevel);
   $('#pet-stat-food').textContent = String(stats.foodStock);

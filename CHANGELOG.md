@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## v0.2.2 — v2.1 心情 & 卡通化 & 动画（2026-07-15）
+
+### 新增
+- **宠物心情系统**：根据「距离上次喂养」+「最近活跃时间」实时计算 4 种心情
+  - `happy` 😊：6h 内被喂过 / 刚被喂饱 → 弹跳动画 + "被你喂饱啦"
+  - `normal` 🙂：24h 内喂过 或 近期有任务活跃 → 呼吸式起伏动画
+  - `sleepy` 😴：24-72h 未喂 → 左右摇晃打瞌睡，滤镜微暗
+  - `sad` 🥺：>72h 未喂 → 小幅颤抖 + 求投喂台词
+- **心情动画**：CSS keyframes 实现 `mood-bounce/idle/sleepy/shake`，无需 JS 定时器
+- **喂饱短时 buff**：喂养后 2 小时内锁定 happy，跨会话保持
+- **自定义形象自动卡通化**：上传图通过 `contrast(1.15) saturate(1.35) brightness(1.02)` CSS filter 做轻量卡通化，可通过 `state.cartoonize` 关闭
+
+### 改造
+- `lib/pets.js`：新增 `computeMood(state, stats)` 和 `MOOD_META`；`feed()` 会写入 `lastFedAt` 和 `moodOverride`
+- `popup/popup.js`：avatar 现在会带上 `mood-*` class 用于动画，心情文案自动更新
+- `popup/popup.css`：新增 mood keyframes 与 pet-mood 徽章样式
+- `manifest.json`：0.2.1 → 0.2.2
+- `README.md`：Roadmap 中 v1 / v2 Option 1 / v2.1 三段勾选状态全部同步
+
+## v0.2.1 — v2 Option 1 · 宠物骨架 + 新图标（2026-07-15）
+- 使用用户提供的懒羊羊图片重新生成 16/32/48/128/256 全套图标 + mascot
+- 整体配色切换到「暖奶油 + 棕色系」（`#fff5d6 / #b0562c / #5c3a1e`）
+- 新增 `lib/pets.js`：多物种（🐑/🐈/🐕/🖼️）状态管理、`foodStock` 消耗喂养、自定义图片上传
+- popup 顶部新增 🏠 宠物之家入口，完成页也可跳转
+- 宠物之家页面：avatar / 心情 / 等级 / 养料 / 累计喂养次数 / picker / 上传
+
 ## v0.2.0 — v1 API 集成（2026-07-15）
 
 ### ✨ Highlights
