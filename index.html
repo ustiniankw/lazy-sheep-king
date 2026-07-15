@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>懒羊羊大王 · 在线试玩 (v0.3.4)</title>
+  <title>懒羊羊大王 · 在线试玩 (v0.3.5)</title>
   <link rel="icon" href="icons/icon-48.png" />
   <style>
     * { box-sizing: border-box; }
@@ -90,14 +90,14 @@
         <img src="icons/icon-128.png" alt="懒羊羊大王" />
         <div>
           <h1>懒羊羊大王 · 执行力浏览器插件</h1>
-          <p>v0.3.4 新增 <b>组队模式 + 隐私模式</b>，以及 <b>完全免费</b> 的 AI 精修三档降级：Chrome 内置 AI → 用户自配 API → 本地兜底。</p>
+          <p>v0.3.5 新增 <b>认证账号系统</b>：访客 / 本地密码账号 / GitHub 登录，三种方式 <b>全部免费</b>、优雅降级；匿名 userId 可平滑升级为真实账号。</p>
           <div class="badges">
-            <span>v0.3.4</span>
+            <span>v0.3.5</span>
             <span>Manifest V3</span>
+            <span>🔐 认证账号</span>
+            <span>🐙 GitHub 登录</span>
             <span>👥 组队模式</span>
-            <span>🔒 隐私模式</span>
             <span>🍃 免费 AI 精修</span>
-            <span>🗂 多任务并存</span>
           </div>
         </div>
       </header>
@@ -105,20 +105,20 @@
       <section class="card">
         <h2>✨ 已上线功能（点击右侧试玩）</h2>
         <div class="feature-grid">
-          <div class="feature-item"><b>👥 组队模式（v0.3.4）</b><br/>创建 / 加入 6 位团队码，查看队友昵称、设备、今日步数、当前任务和最近活跃</div>
+          <div class="feature-item"><b>🔐 本地密码账号（v0.3.5）</b><br/>PBKDF2(10万次)+AES-GCM 全在本机派生，密码永不落盘；任何环境（含 Web 试玩）都能用</div>
+          <div class="feature-item"><b>🐙 GitHub 登录（v0.3.5）</b><br/>OAuth Device Flow 真实验证身份；你自建免费 OAuth App、client_id 完全归你所有，我们不内置</div>
+          <div class="feature-item"><b>🆙 平滑升级（v0.3.5）</b><br/>匿名 userId 一键升级为真实账号，历史任务 / 统计 / 宠物数据自动带走，不丢进度</div>
+          <div class="feature-item"><b>👥 组队模式（v0.3.4）</b><br/>创建 / 加入 6 位团队码，查看队友昵称、设备、今日步数、当前任务；GitHub 队友带 🐙 徽章</div>
           <div class="feature-item"><b>🔒 隐私模式（v0.3.4）</b><br/>每个任务可切到公开 / 仅隐藏标题 / 完全隐私，避免把真实任务暴露给队友</div>
-          <div class="feature-item"><b>🫵 拍一拍（v0.3.4）</b><br/>给队友发鼓励 poke，对方下次打开就能看到红点与提醒</div>
-          <div class="feature-item"><b>🔗 免费 URL 同步（v0.3.4）</b><br/>默认快照交换零后端；如有需要再手动粘贴 JSONBin.io / npoint.io URL</div>
           <div class="feature-item"><b>🍃 免费 AI 精修（v0.3.4）</b><br/>不买 GPT，优先 Chrome Prompt API；不可用时再走你自己的免费 / 本地 API</div>
-          <div class="feature-item"><b>🍃 本地兜底升级（v0.3.3）</b><br/>无 API 也能识别 20+ 常见意图，支持相似任务 skeleton 复用</div>
           <div class="feature-item"><b>📅 完成日历打卡图（v0.3.2）</b><br/>30 / 90 天完成热力图 + 连续打卡 streak + 每日养料统计</div>
           <div class="feature-item"><b>🕐 按步骤倒计时（v0.3.1）</b><br/>每步按 estMinutes 独立倒计时，准时完成 +50% 养料</div>
           <div class="feature-item"><b>🗂 多任务并存（v0.3.0）</b><br/>同时挂 N 个任务，随时切换继续，每个任务独立进度</div>
           <div class="feature-item"><b>🏠 宠物之家（v0.2.x）</b><br/>🐑 / 🐈 / 🐕 / 🖼️ 自定义宠物，可持续养成</div>
         </div>
         <div class="cost-note">
-          <b>为什么这里写“免费 AI”？</b><br/>
-          因为 OpenAI 的 GPT API 需要付费，所以 v0.3.4 不走项目方出钱的 GPT 路线；改用 Chrome 内置 Prompt API、用户自己配置的免费 / 本地 provider，全部不可用时直接回退本地兜底。
+          <b>三种账号成本表：全部 ¥0</b><br/>
+          访客（本地匿名，0 依赖）· 本地密码账号（Web Crypto，纯本机，0 后端）· GitHub 登录（你自建免费 OAuth App，0 费用）· Google 登录（骨架，待发布到 Chrome Web Store 后启用）。全程不含任何付费依赖，不内置任何 client_id / secret。
         </div>
       </section>
 
@@ -133,7 +133,8 @@
           <li><span class="roadmap-check">✅</span> <b>v0.3.1</b> · 按步骤倒计时 & 动态养料</li>
           <li><span class="roadmap-check">✅</span> <b>v0.3.2</b> · 完成日历打卡图 & 自定义上传优化</li>
           <li><span class="roadmap-check">✅</span> <b>v0.3.3</b> · 删除修复 / 宠物反馈 / 用户体系 / 本地兜底升级</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.3.4</b> · 组队模式 / 隐私模式 / 免费 AI 精修 <em>← 当前版本</em></li>
+          <li><span class="roadmap-check">✅</span> <b>v0.3.4</b> · 组队模式 / 隐私模式 / 免费 AI 精修</li>
+          <li><span class="roadmap-check">✅</span> <b>v0.3.5</b> · 认证账号系统（访客 / 本地密码 / GitHub，全部免费）<em>← 当前版本</em></li>
           <li><span class="roadmap-todo">☐</span> v0.4 · 宠物商店 / 换装 / 好友互动</li>
           <li><span class="roadmap-todo">☐</span> v0.5 · Todoist / Notion / 飞书任务导入</li>
         </ul>
@@ -145,13 +146,13 @@
       </section>
 
       <section class="card">
-        <h2>🆕 v0.3.4 两大主特性怎么玩</h2>
+        <h2>🆕 v0.3.5 认证账号怎么玩</h2>
         <ol>
-          <li>先在右侧输入一个任务，比如「写周报」「准备评审会」「跑步 5km」，本地会先拆解，再尝试免费 AI 精修。</li>
-          <li>点顶栏 <b>👥</b> 创建队伍，复制 6 位团队码给朋友；默认推荐先导出 / 导入队伍快照。</li>
-          <li>给当前任务点步骤卡片上的 <b>隐私按钮</b>，可以在公开 / 仅隐藏标题 / 完全隐私之间切换。</li>
-          <li>在队友列表里点 <b>🫵 拍一拍</b>，对方下次打开会看到 poke 提醒。</li>
-          <li>如果你真想试轻量自动同步，再粘贴 JSONBin.io / npoint.io URL；不填 URL 就完全离线。</li>
+          <li>点顶栏 <b>👤 我的</b>，顶部就是账号卡片：头像、昵称、模式徽章（👤 访客 / 🔐 本地账号 / 🐙 GitHub）。</li>
+          <li>想跨设备找回进度？点 <b>🔐 创建本地密码账号</b>，设昵称 + 密码（至少 6 位、避开弱口令），密码只在本机派生密钥，永不上传。</li>
+          <li>本地账号解锁后，<b>导出备份会自动 AES-GCM 加密</b>；导入时输入同一密码即可解密恢复。</li>
+          <li>想要真实验证身份？切到 <b>🐙 GitHub</b> 标签，按三步自建免费 OAuth App，把 client_id 粘进来，用设备码在 github.com/login/device 授权。</li>
+          <li>生成新用户 ID / 导入备份等敏感操作，在账号锁定时会要求先解锁，保护你的数据。</li>
         </ol>
       </section>
 
@@ -159,7 +160,7 @@
         <h2>📌 Web 试玩说明</h2>
         <p>
           右侧是纯前端 Web 预览：没有 <code>chrome.*</code>，因此会自动降级到 <code>localStorage</code>。<br/>
-          同时，Chrome Prompt API 在这个预览环境里通常不可直接使用，所以你会看到“Chrome 内置 AI 不可用”，这是预期行为；真实扩展环境下会按浏览器能力再尝试启用。
+          <b>访客</b> 与 <b>本地密码账号</b> 在试玩环境完全可用；<b>GitHub 登录</b> 因浏览器 CORS 限制可能无法在网页试玩完成，会提示“网页试玩环境无法完成 GitHub 登录，请在安装扩展后使用”，这是预期行为。
         </p>
       </section>
     </main>
