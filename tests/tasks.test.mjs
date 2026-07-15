@@ -93,5 +93,16 @@ await t('setSettings 深合并 pomodoro', async () => {
   eq(s.pomodoro.breakMinutes, 5);
 });
 
+console.log('Storage · v0.3.2 dailyLog 打卡');
+
+await t('addStepCompleted + addTaskCompleted 累加当日 dailyLog', async () => {
+  const { todayKey } = await import('../lib/calendar.js');
+  await Storage.addStepCompleted({ food: 3 });
+  await Storage.addTaskCompleted({ food: 2, exp: 1 });
+  const stats = await Storage.getStats();
+  const today = todayKey();
+  eq(JSON.stringify(stats.dailyLog[today]), JSON.stringify({ steps: 1, tasks: 1, food: 5 }));
+});
+
 console.log(`\nresult: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

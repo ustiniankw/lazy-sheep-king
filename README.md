@@ -2,7 +2,7 @@
 
 > **让懒虫也能一步一步搞定事情** —— 你输入一件想做的事，懒羊羊大王把它拆成"傻瓜到不能再傻瓜"的小步骤，每完成一步都有彩带、鼓励和小音效，让你不知不觉把大事儿做完。
 
-🚀 **[👉 在线试玩 v0.3.1](https://e628d62014a7.aime-app.bytedance.net)** —— 不用装扩展也能直接玩。
+🚀 **[👉 在线试玩 v0.3.2](https://539f2546774b.aime-app.bytedance.net)** —— 不用装扩展也能直接玩。
 
 ![banner](./icons/mascot.png)
 
@@ -16,6 +16,8 @@
 - **Plan 二次编辑 & 一键再拆一层**（v1）：拆解结果可以增删改重排，某一步不会做点一下让 AI 再拆一层。
 - **宠物之家 & 心情系统**（v2 / v2.1）：养懒羊羊 / 猫 / 狗 / 自定义形象；完成一步积攒养料喂宠物；4 种心情动画自动切换；上传图自动卡通化。
 - **🕐 按步骤倒计时**（v0.3.1）：每一步用自己的 `estMinutes` 独立倒计时，可暂停 / +1 分钟 / 时间到提示音；养料按 estMinutes 发放，准时完成 +50% 奖励。
+- **📅 完成日历打卡图**（v0.3.2）：顶栏 📅 入口，30 / 90 天完成热力图 + 连续打卡 streak + 每日养料统计；`stats.dailyLog` 每日累计 steps / tasks / food。
+- **🖼 自定义形象上传优化**（v0.3.2）：移除不可靠的长按，改为显式「上传/更换形象」「卡通化」按钮，Web 预览下也能一键上传。
 - **🗂 多任务并存**（v0.3.0）：可以同时挂 N 个任务，随时切换继续，每个任务独立进度。
 - **本地存储**：所有数据都保存在 `chrome.storage.local`，不上传任何服务器。
 - **快捷键**：`Alt + L` 一键唤起。
@@ -129,6 +131,15 @@
 - [x] 移除 v0.3.0 固定 25/5 番茄钟 UI 与设置
 - [x] `tests/step_timer.test.mjs`：15/15 ✅ （fmt / countdown / calcStepReward / calcTaskCompletionBonus）
 
+### 📅 v0.3.2 · 完成日历打卡图 + 自定义上传优化（✅ 当前版本）
+> 目标：把每天的完成情况沉淀成可视化打卡图，并修好 Web 预览下自定义形象上传的体验。
+
+- [x] **完成日历打卡图**：30 / 90 天完成热力图（7 行 weekday × N 列周）+ tooltip
+- [x] **打卡统计**：完成任务 / 完成步骤 / 连续打卡 streak / 总养料（近 30 天）
+- [x] **`stats.dailyLog` 字段**：每日累计 `{ steps, tasks, food }`；`lib/calendar.js` 纯函数（`todayKey / daysAgoKey / buildHeatmap / summarize`）
+- [x] **自定义形象上传优化**：移除长按，改为显式「🖼 上传/更换形象」「✨ 卡通化」按钮
+- [x] `tests/calendar.test.mjs`：10/10 ✅；`tests/tasks.test.mjs` 新增 dailyLog 断言 → 累计 **54 全部通过**
+
 ## 🧩 目录结构
 
 ```
@@ -151,6 +162,7 @@ lazy-sheep-king/
 │   ├── providers.js        # v1: Provider 预设（OpenAI / DeepSeek / Moonshot / 智谱 / Ollama / Custom）
 │   ├── pets.js             # v2: 宠物状态 & 心情系统 & 喂养逻辑
 │   ├── step_timer.js       # v0.3.1: 通用倒计时 + 动态养料公式（替代 v0.3.0 pomodoro.js）
+│   ├── calendar.js         # v0.3.2: 完成日历打卡图纯函数（heatmap / streak / summarize）
 │   └── celebrate.js        # 彩带 / 音效 / 萌语
 ├── docs/
 │   └── preview.html        # 不用装扩展也能在浏览器里预览效果
