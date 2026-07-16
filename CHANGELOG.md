@@ -1,5 +1,36 @@
 # CHANGELOG
 
+## v0.5.2 — GitHub Pages 自动部署 + Release-on-tag + PWA 新版本发现横幅（2026-07-16）
+
+> 发布工程小版本。让 Web 版有一条对外的**稳定长期 URL**（`https://ustiniankw.github.io/lazy-sheep-king`），并给「装成 Chrome 扩展」提供一键 zip 产物，方便非技术用户使用。**测试全绿，零功能回退。**
+
+### ✨ 新增
+
+- **Added GitHub Pages auto-deploy workflow** — `.github/workflows/deploy-pages.yml`：`push → main` 触发，`actions/upload-pages-artifact@v3` + `actions/deploy-pages@v4`，无构建步骤（纯静态），`permissions: pages:write / id-token:write` + `concurrency: pages` 都配好。仓库 owner 只需在 Settings → Pages 里 **Enable Pages（Source: GitHub Actions）** 一次即可。
+- **Added Release-on-tag workflow that builds installable Chrome extension zip** — `.github/workflows/release.yml`：推 `v*` tag 触发，从仓库 root 挑出 Chrome unpacked 扩展需要的最小集合（`manifest.json`、`popup/`、`options/`、`lib/`、`icons/`、`manifest.webmanifest`、`service-worker.js`、`background/`、`LICENSE`、`README.md`），打包成 `lazy-sheep-king-<version>.zip`，用 `softprops/action-gh-release@v2` 作为 Release asset 上传。**Excludes**：`.git` / `.github/` / `tests/` / `ui-samples/` / `layout-samples/` / `preview_site/` / `lsk-preview/` / `docs/*.md` / `*.test.mjs` / 旧的 `lazy-sheep-king.zip`。
+- **New README quick-start (Web / Zip 扩展 / 源码)** — README 顶部新增三大安装方式段：**A · PWA**（写死 `https://ustiniankw.github.io/lazy-sheep-king`，即便 Pages 还没启用也没关系）/ **B · Chrome 扩展 zip 三步**（配 emoji 傻瓜级指南 + Release latest 链接）/ **C · 从源码 build**（`git clone` + unpacked，附 CWS 上架计划说明）。
+- **PWA 新版本发现横幅** — `lib/pwa_update.js`（新）：监听 `serviceWorker.registration.updatefound` + `installing.statechange === 'installed'`（controller 已存在）以及 `serviceWorker.controllerchange`，触发 iOS 原生风顶部 top banner 「🔄 发现新版本 · 点这里刷新」，点击 / 键盘 Enter 都会 `location.reload()`。只在 web / PWA 环境启用，扩展 popup 内 skip。CSS 采用蓝色药丸 + top slide-down + `prefers-reduced-motion` 兜底。
+
+### 🔧 版本
+
+- `manifest.json` → `0.5.2`
+- `service-worker.js` `CACHE_NAME` → `lsk-cache-v0.5.2`（同时把 `lib/pwa_update.js` 加入 APP_SHELL）
+- `popup/popup.js` `APP_VERSION` → `0.5.2`
+- `index.html` version badge / title → `0.5.2`
+- `tests/pwa.test.mjs` 已跟随更新，仍绿
+
+### 🧪 测试
+
+- 新增 `tests/pwa_update.test.mjs`（12+ assertions）：`isExtensionPopup` / `hasWaitingUpdate` 状态矩阵、`createUpdateBanner` 幂等 + 点击回调、`installSWUpdateWatcher` 在扩展 popup 上下文 no-op、`updatefound → installed` 触发 banner。
+- 全量 `node --test tests/*.mjs`：仍全绿，无回退。
+
+### 📝 说明
+
+- README 明确提醒仓库 owner 需要一次性开 Pages。
+- Release 工作流是 tag-triggered，`main` 上直接 push 不会误打包；用户手动 `git tag v0.5.2 && git push --tags` 即可测试 release.yml。
+
+---
+
 ## v0.5.1 — 永不卡住 + 免费 AI 一键接入（2026-07-16）
 
 🚀 **在线试玩**：https://324d0dbb517c.aime-app.bytedance.net

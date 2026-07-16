@@ -1,5 +1,5 @@
-// service-worker.js — v0.5.0 PWA cache
-const CACHE_NAME = 'lsk-cache-v0.5.0';
+// service-worker.js — v0.5.2 PWA cache
+const CACHE_NAME = 'lsk-cache-v0.5.2';
 
 const APP_SHELL = [
   './',
@@ -20,6 +20,7 @@ const APP_SHELL = [
   './lib/providers.js',
   './lib/user_id.js',
   './lib/layout.js',
+  './lib/pwa_update.js',
   './icons/icon-16.png',
   './icons/icon-32.png',
   './icons/icon-48.png',

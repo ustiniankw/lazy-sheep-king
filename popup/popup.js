@@ -13,8 +13,9 @@ import { detectAvailableTier, chromePromptApiAvailable } from '../lib/ai_rerank.
 import { getWizardProviders, findProvider } from '../lib/providers.js';
 import { chatComplete } from '../lib/llm_client.js';
 import { computeBreakpoint } from '../lib/layout.js';
+import { installSWUpdateWatcher } from '../lib/pwa_update.js';
 
-const APP_VERSION = '0.5.1';
+const APP_VERSION = '0.5.2';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const urlParams = new URLSearchParams(location.search);
@@ -2407,6 +2408,9 @@ let deferredPrompt = null;
 
 if ('serviceWorker' in navigator && !('chrome' in window && chrome.runtime?.id)) {
   navigator.serviceWorker.register('../service-worker.js').catch(() => {});
+  installSWUpdateWatcher({
+    onReload: () => { try { location.reload(); } catch {} },
+  });
 }
 
 window.addEventListener('beforeinstallprompt', (event) => {
