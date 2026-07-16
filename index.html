@@ -3,84 +3,159 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>懒羊羊大王 · 在线试玩 (v0.3.5)</title>
+  <title>懒羊羊大王 · 在线试玩 (v0.4.0 · iOS 原生风)</title>
   <link rel="icon" href="icons/icon-48.png" />
   <style>
+    :root {
+      --ios-blue: #007AFF;
+      --ios-green: #34C759;
+      --ios-orange: #FF9500;
+      --ios-red: #FF3B30;
+      --ios-purple: #AF52DE;
+      --ios-gray1: #8E8E93;
+      --ios-gray6: #F2F2F7;
+      --surface-bg: var(--ios-gray6);
+      --surface-card: #FFFFFF;
+      --separator: rgba(60,60,67,0.08);
+      --text-primary: #1C1C1E;
+      --text-secondary: #6E6E73;
+      --text-tertiary: #86868B;
+      --radius-card: 14px;
+      --shadow-card: 0 1px 3px rgba(0,0,0,0.04);
+      --shadow-elev: 0 8px 24px rgba(0,0,0,0.08);
+      --font-stack: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+      --ease-ios: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --surface-bg: #000000;
+        --surface-card: #1C1C1E;
+        --separator: rgba(255,255,255,0.08);
+        --text-primary: #FFFFFF;
+        --text-secondary: #98989F;
+        --text-tertiary: #8E8E93;
+      }
+    }
     * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
     body {
-      margin: 0;
-      background: linear-gradient(135deg, #fff5d6 0%, #ffe8b8 100%);
+      font-family: var(--font-stack);
+      background: var(--surface-bg);
+      color: var(--text-primary);
       min-height: 100vh;
-      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-      color: #5c3a1e;
+      -webkit-font-smoothing: antialiased;
+      font-size: 15px;
+      line-height: 1.5;
     }
     .wrap {
       max-width: 1180px;
       margin: 0 auto;
-      padding: 24px 20px 40px;
+      padding: 32px 20px 60px;
       display: grid;
       grid-template-columns: 1fr 460px;
       gap: 28px;
     }
-    @media (max-width: 900px) {
+    @media (max-width: 960px) {
       .wrap { grid-template-columns: 1fr; }
       .side { order: -1; }
     }
-    header.top { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
-    header.top img { width: 56px; height: 56px; border-radius: 14px; box-shadow: 0 6px 20px rgba(176,86,44,0.25); }
-    header.top h1 { margin: 0; font-size: 28px; color: #5c3a1e; }
-    header.top p { margin: 4px 0 0; color: #8c7455; font-size: 14px; line-height: 1.7; }
-    .badges { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
-    .badges span {
-      background: #fff; color: #b0562c; border: 1px solid #f0c96d;
-      padding: 3px 9px; border-radius: 999px; font-size: 12px;
+    header.top { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+    header.top img { width: 60px; height: 60px; border-radius: 16px; box-shadow: var(--shadow-elev); }
+    header.top h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.5px; color: var(--text-primary); line-height: 1.15; }
+    header.top .subtitle { margin: 6px 0 0; color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
+    .badges { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .badge {
+      background: var(--surface-card);
+      color: var(--ios-blue);
+      padding: 4px 10px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+      box-shadow: var(--shadow-card);
     }
+    .badge.new { background: var(--ios-blue); color: #fff; }
     .card {
-      background: rgba(255, 255, 255, 0.7);
-      border: 1px solid #f0c96d;
+      background: var(--surface-card);
       border-radius: 18px;
-      padding: 18px 20px;
-      backdrop-filter: blur(4px);
-      margin-bottom: 14px;
+      padding: 20px 22px;
+      box-shadow: var(--shadow-card);
+      margin-bottom: 16px;
     }
-    .card h2 { margin: 0 0 8px; font-size: 17px; }
-    .card p, .card li { line-height: 1.7; color: #5c3a1e; font-size: 14px; }
-    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .card h2 { margin: 0 0 10px; font-size: 18px; font-weight: 700; letter-spacing: -0.2px; }
+    .card p, .card li { line-height: 1.7; color: var(--text-primary); font-size: 14px; }
+    .card p { color: var(--text-secondary); }
+    .card ul { padding-left: 20px; }
+    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    @media (max-width: 640px) { .feature-grid { grid-template-columns: 1fr; } }
     .feature-item {
-      background: #fff8e4; border: 1px dashed #f0c96d; border-radius: 12px;
-      padding: 10px 12px; font-size: 13px;
+      background: var(--surface-bg);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-primary);
     }
-    .feature-item b { color: #b0562c; }
+    .feature-item b { color: var(--ios-blue); font-weight: 600; }
     .frame-wrap {
-      background: #fff8e4; border: 1px solid #f0c96d;
-      border-radius: 20px; padding: 12px;
-      box-shadow: 0 20px 50px rgba(176, 86, 44, 0.15);
-      position: sticky; top: 24px;
+      background: var(--surface-card);
+      border-radius: 20px;
+      padding: 14px;
+      box-shadow: var(--shadow-elev);
+      position: sticky;
+      top: 24px;
     }
-    .frame-wrap h3 { margin: 0 0 10px; font-size: 14px; text-align: center; color: #b0562c; }
+    .frame-wrap h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; text-align: center; color: var(--text-secondary); }
     iframe {
       width: 100%; height: 760px; border: 0; border-radius: 14px;
-      background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+      background: var(--surface-bg);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.05);
     }
-    .frame-tips { font-size: 11px; color: #8c7455; margin-top: 8px; text-align: center; line-height: 1.6; }
-    .frame-tips a { color: #b0562c; }
-    .cta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .frame-tips { font-size: 11px; color: var(--text-tertiary); margin-top: 8px; text-align: center; line-height: 1.6; }
+    .frame-tips a { color: var(--ios-blue); text-decoration: none; }
+    .cta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
     .cta a {
-      background: linear-gradient(135deg, #e6a940, #b0562c);
-      color: #fff8e4; text-decoration: none;
-      padding: 8px 14px; border-radius: 999px;
-      font-size: 13px; font-weight: 600;
-      box-shadow: 0 4px 10px rgba(176,86,44,0.3);
+      background: var(--ios-blue);
+      color: #fff;
+      text-decoration: none;
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      transition: transform 0.15s var(--ease-ios), opacity 0.15s var(--ease-ios);
     }
+    .cta a:active { transform: scale(0.97); opacity: 0.85; }
     .cta a.ghost {
-      background: #fff; color: #b0562c;
-      border: 1px solid #f0c96d; box-shadow: none;
+      background: var(--surface-bg);
+      color: var(--ios-blue);
     }
-    .roadmap-check { color: #6bb04f; font-weight: 700; }
-    .roadmap-todo { color: #999; }
+    .roadmap-check { color: var(--ios-green); font-weight: 700; }
+    .roadmap-todo { color: var(--text-tertiary); }
     .cost-note {
-      margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: #fff5d6; border: 1px dashed #f0c96d; font-size: 13px;
+      margin-top: 12px; padding: 12px 14px; border-radius: 12px;
+      background: rgba(52,199,89,0.10);
+      color: var(--text-primary);
+      font-size: 13px;
+      line-height: 1.6;
     }
+    .cost-note b { color: var(--ios-green); }
+    .design-tokens {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .swatch { text-align: center; }
+    .swatch-color {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 10px;
+      margin-bottom: 4px;
+      box-shadow: var(--shadow-card);
+    }
+    .swatch-label { font-size: 10px; color: var(--text-secondary); font-family: 'SF Mono', ui-monospace, monospace; }
+    details summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 4px 0; }
+    details[open] summary { color: var(--ios-blue); }
+    code { background: var(--surface-bg); padding: 1px 6px; border-radius: 4px; font-family: 'SF Mono', ui-monospace, monospace; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -90,53 +165,67 @@
         <img src="icons/icon-128.png" alt="懒羊羊大王" />
         <div>
           <h1>懒羊羊大王 · 执行力浏览器插件</h1>
-          <p>v0.3.5 新增 <b>认证账号系统</b>：访客 / 本地密码账号 / GitHub 登录，三种方式 <b>全部免费</b>、优雅降级；匿名 userId 可平滑升级为真实账号。</p>
+          <p class="subtitle">v0.4.0 <b>iOS 原生风 UI 重构</b>：分组卡片列表 · SF 字重层级 · 系统蓝主色 · 底部 Tab Bar 毛玻璃 · 细腻的 cubic-bezier 动效 · 完整保留 v0.3.x 全部功能与账号体系。</p>
           <div class="badges">
-            <span>v0.3.5</span>
-            <span>Manifest V3</span>
-            <span>🔐 认证账号</span>
-            <span>🐙 GitHub 登录</span>
-            <span>👥 组队模式</span>
-            <span>🍃 免费 AI 精修</span>
+            <span class="badge new">v0.4.0</span>
+            <span class="badge">🎨 iOS 原生风</span>
+            <span class="badge">Manifest V3</span>
+            <span class="badge">🔐 认证账号</span>
+            <span class="badge">👥 组队模式</span>
+            <span class="badge">🍃 免费 AI 精修</span>
           </div>
         </div>
       </header>
 
       <section class="card">
-        <h2>✨ 已上线功能（点击右侧试玩）</h2>
+        <h2>✨ v0.4.0 亮点（点击右侧试玩）</h2>
         <div class="feature-grid">
-          <div class="feature-item"><b>🔐 本地密码账号（v0.3.5）</b><br/>PBKDF2(10万次)+AES-GCM 全在本机派生，密码永不落盘；任何环境（含 Web 试玩）都能用</div>
-          <div class="feature-item"><b>🐙 GitHub 登录（v0.3.5）</b><br/>OAuth Device Flow 真实验证身份；你自建免费 OAuth App、client_id 完全归你所有，我们不内置</div>
-          <div class="feature-item"><b>🆙 平滑升级（v0.3.5）</b><br/>匿名 userId 一键升级为真实账号，历史任务 / 统计 / 宠物数据自动带走，不丢进度</div>
-          <div class="feature-item"><b>👥 组队模式（v0.3.4）</b><br/>创建 / 加入 6 位团队码，查看队友昵称、设备、今日步数、当前任务；GitHub 队友带 🐙 徽章</div>
-          <div class="feature-item"><b>🔒 隐私模式（v0.3.4）</b><br/>每个任务可切到公开 / 仅隐藏标题 / 完全隐私，避免把真实任务暴露给队友</div>
-          <div class="feature-item"><b>🍃 免费 AI 精修（v0.3.4）</b><br/>不买 GPT，优先 Chrome Prompt API；不可用时再走你自己的免费 / 本地 API</div>
-          <div class="feature-item"><b>📅 完成日历打卡图（v0.3.2）</b><br/>30 / 90 天完成热力图 + 连续打卡 streak + 每日养料统计</div>
-          <div class="feature-item"><b>🕐 按步骤倒计时（v0.3.1）</b><br/>每步按 estMinutes 独立倒计时，准时完成 +50% 养料</div>
-          <div class="feature-item"><b>🗂 多任务并存（v0.3.0）</b><br/>同时挂 N 个任务，随时切换继续，每个任务独立进度</div>
-          <div class="feature-item"><b>🏠 宠物之家（v0.2.x）</b><br/>🐑 / 🐈 / 🐕 / 🖼️ 自定义宠物，可持续养成</div>
+          <div class="feature-item"><b>🍎 iOS 原生视觉</b><br/>圆角分组卡片、SF Pro + PingFang SC、系统蓝 <code>#007AFF</code>、iOS 6 色阶灰度</div>
+          <div class="feature-item"><b>📱 底部 Tab Bar</b><br/>首页 / 任务 / 宠物 / 打卡 / 我的，毛玻璃 <code>backdrop-filter: blur(12px)</code></div>
+          <div class="feature-item"><b>🏠 全新首页</b><br/>问候语 + 今日 hero 卡 + 进行中任务 + 4 格快捷 + 统计分组</div>
+          <div class="feature-item"><b>🎯 步骤圆圈化</b><br/>iOS 待办清单圆圈 check，当前项蓝色 halo，完成态绿色描边</div>
+          <div class="feature-item"><b>🌙 深色模式</b><br/><code>prefers-color-scheme: dark</code> 自适应，全局 tokens 一处切换</div>
+          <div class="feature-item"><b>💫 细腻动效</b><br/><code>cubic-bezier(0.4,0,0.2,1)</code> 300ms + stagger fadeIn + active scale 0.97</div>
+          <div class="feature-item"><b>🐑 懒羊羊真身</b><br/>topbar 32×32 头像、宠物页 96×96 hero，均保留原 mascot.png 资产</div>
+          <div class="feature-item"><b>0 功能回退</b><br/>163 个测试全部通过；任务 / 宠物 / 组队 / 认证账号完整保留</div>
         </div>
         <div class="cost-note">
-          <b>三种账号成本表：全部 ¥0</b><br/>
-          访客（本地匿名，0 依赖）· 本地密码账号（Web Crypto，纯本机，0 后端）· GitHub 登录（你自建免费 OAuth App，0 费用）· Google 登录（骨架，待发布到 Chrome Web Store 后启用）。全程不含任何付费依赖，不内置任何 client_id / secret。
+          <b>兼容性：</b> 保留全部 v0.3.5 存储结构、认证账号系统、组队快照协议；本次仅重构 UI 层，无破坏性变更。
         </div>
+      </section>
+
+      <section class="card">
+        <details>
+          <summary>🎨 设计规范（Design Tokens）</summary>
+          <p style="margin-top:10px">全部 tokens 位于 <code>popup/popup.css</code> 顶部 <code>:root</code>，options / index 共享。</p>
+          <div class="design-tokens">
+            <div class="swatch"><div class="swatch-color" style="background:#007AFF"></div><div class="swatch-label">--ios-blue</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#34C759"></div><div class="swatch-label">--ios-green</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#FF9500"></div><div class="swatch-label">--ios-orange</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#FF3B30"></div><div class="swatch-label">--ios-red</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#AF52DE"></div><div class="swatch-label">--ios-purple</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#F2F2F7;border:1px solid var(--separator)"></div><div class="swatch-label">--ios-gray6</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#FFFFFF;border:1px solid var(--separator)"></div><div class="swatch-label">--surface-card</div></div>
+            <div class="swatch"><div class="swatch-color" style="background:#1C1C1E"></div><div class="swatch-label">--text-primary</div></div>
+          </div>
+          <ul style="margin-top:12px">
+            <li>圆角：卡片 14px · 按钮 12px · 药丸 100px · Row 10px</li>
+            <li>阴影：<code>0 1px 3px rgba(0,0,0,0.04)</code> · elev <code>0 8px 24px rgba(0,0,0,0.08)</code></li>
+            <li>动效：<code>cubic-bezier(0.4, 0, 0.2, 1)</code> · 视图切换 300ms · 按下 scale 0.97</li>
+            <li>字体栈：<code>-apple-system, 'SF Pro Text', 'PingFang SC', ...</code></li>
+            <li>大标题：32px 700 letter-spacing -0.5px，页面顶部大字，滚动内容时依然清晰</li>
+          </ul>
+        </details>
       </section>
 
       <section class="card">
         <h2>🗺️ Roadmap</h2>
         <ul>
-          <li><span class="roadmap-check">✅</span> <b>v0.1</b> · 页面 + 兜底逻辑</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.2.0</b> · v1 API 集成（多 Provider + Plan 编辑 + refine）</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.2.1</b> · 宠物骨架 + 新图标 / 配色</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.2.2</b> · 心情 & 动画 & 卡通化</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.3.0</b> · 多任务并存</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.3.1</b> · 按步骤倒计时 & 动态养料</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.3.2</b> · 完成日历打卡图 & 自定义上传优化</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.3.3</b> · 删除修复 / 宠物反馈 / 用户体系 / 本地兜底升级</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.3.4</b> · 组队模式 / 隐私模式 / 免费 AI 精修</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.3.5</b> · 认证账号系统（访客 / 本地密码 / GitHub，全部免费）<em>← 当前版本</em></li>
-          <li><span class="roadmap-todo">☐</span> v0.4 · 宠物商店 / 换装 / 好友互动</li>
-          <li><span class="roadmap-todo">☐</span> v0.5 · Todoist / Notion / 飞书任务导入</li>
+          <li><span class="roadmap-check">✅</span> <b>v0.1 – v0.3.4</b> · 任务拆解 / 宠物养成 / 多任务 / 倒计时 / 日历 / 组队</li>
+          <li><span class="roadmap-check">✅</span> <b>v0.3.5</b> · 认证账号系统（访客 / 本地密码 / GitHub Device Flow）</li>
+          <li><span class="roadmap-check">✅</span> <b>v0.4.0</b> · <b>iOS 原生风 UI 重构</b> <em>← 当前版本</em></li>
+          <li><span class="roadmap-todo">☐</span> v0.5 · 宠物商店 / 换装 / 好友互动</li>
+          <li><span class="roadmap-todo">☐</span> v0.6 · Todoist / Notion / 飞书任务导入</li>
         </ul>
         <div class="cta">
           <a href="https://github.com/ustiniankw/lazy-sheep-king" target="_blank">📦 GitHub 仓库</a>
@@ -146,28 +235,17 @@
       </section>
 
       <section class="card">
-        <h2>🆕 v0.3.5 认证账号怎么玩</h2>
-        <ol>
-          <li>点顶栏 <b>👤 我的</b>，顶部就是账号卡片：头像、昵称、模式徽章（👤 访客 / 🔐 本地账号 / 🐙 GitHub）。</li>
-          <li>想跨设备找回进度？点 <b>🔐 创建本地密码账号</b>，设昵称 + 密码（至少 6 位、避开弱口令），密码只在本机派生密钥，永不上传。</li>
-          <li>本地账号解锁后，<b>导出备份会自动 AES-GCM 加密</b>；导入时输入同一密码即可解密恢复。</li>
-          <li>想要真实验证身份？切到 <b>🐙 GitHub</b> 标签，按三步自建免费 OAuth App，把 client_id 粘进来，用设备码在 github.com/login/device 授权。</li>
-          <li>生成新用户 ID / 导入备份等敏感操作，在账号锁定时会要求先解锁，保护你的数据。</li>
-        </ol>
-      </section>
-
-      <section class="card">
         <h2>📌 Web 试玩说明</h2>
         <p>
           右侧是纯前端 Web 预览：没有 <code>chrome.*</code>，因此会自动降级到 <code>localStorage</code>。<br/>
-          <b>访客</b> 与 <b>本地密码账号</b> 在试玩环境完全可用；<b>GitHub 登录</b> 因浏览器 CORS 限制可能无法在网页试玩完成，会提示“网页试玩环境无法完成 GitHub 登录，请在安装扩展后使用”，这是预期行为。
+          <b>访客</b>、<b>本地密码账号</b> 在试玩环境完全可用；<b>GitHub 登录</b> 因浏览器 CORS 限制可能无法在网页试玩完成，会提示相应错误，这是预期行为。
         </p>
       </section>
     </main>
 
     <aside class="side">
       <div class="frame-wrap">
-        <h3>👇 立即试玩（Web 预览）</h3>
+        <h3>👇 立即试玩 · Web 预览</h3>
         <iframe src="popup/popup.html" title="懒羊羊大王 popup 预览"></iframe>
         <div class="frame-tips">
           Web 预览版没有 <code>chrome.*</code> API，所以用 <code>localStorage</code> 模拟。<br/>

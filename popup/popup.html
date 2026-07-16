@@ -4,382 +4,470 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>懒羊羊大王</title>
+  <link rel="icon" href="../icons/icon-48.png" />
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
   <div id="app" class="app">
-    <header class="topbar">
-      <div class="brand">
-        <img src="../icons/icon-48.png" class="brand-logo" alt="懒羊羊大王" />
-        <div class="brand-text">
-          <div class="brand-title">懒羊羊大王</div>
-          <div class="brand-sub">任务拆解 + 宠物养成 + 组队隐私</div>
-        </div>
-      </div>
-      <div class="topbar-actions">
-        <button id="btn-calendar" class="icon-btn" title="完成日历打卡图">📅</button>
-        <button id="btn-team" class="icon-btn icon-btn-badge" title="组队模式">
+    <!-- ==================== Topbar ==================== -->
+    <header class="ios-topbar">
+      <button id="btn-topbar-brand" class="ios-topbar-avatar" title="回到首页" aria-label="首页">
+        <img src="../icons/icon-32.png" alt="懒羊羊大王" />
+      </button>
+      <div class="ios-topbar-title" id="topbar-title">懒羊羊大王</div>
+      <div class="ios-topbar-actions">
+        <button id="btn-calendar" class="ios-icon-btn" title="完成日历打卡图">📅</button>
+        <button id="btn-team" class="ios-icon-btn" title="组队模式">
           <span>👥</span>
-          <span id="team-bell-badge" class="icon-badge hidden">0</span>
+          <span id="team-bell-badge" class="ios-badge hidden">0</span>
         </button>
-        <button id="btn-pet" class="icon-btn" title="宠物之家">🏠</button>
-        <button id="btn-my" class="icon-btn" title="我的">👤</button>
-        <button id="btn-open-full" class="icon-btn" title="在新标签页打开大屏模式">⛶</button>
-        <button id="btn-options" class="icon-btn" title="设置">⚙</button>
+        <button id="btn-my" class="ios-icon-btn" title="我的">👤</button>
+        <button id="btn-open-full" class="ios-icon-btn" title="在新标签页打开大屏模式">⛶</button>
+        <button id="btn-options" class="ios-icon-btn" title="设置">⚙</button>
       </div>
     </header>
 
-    <section class="view view-input" data-view="input">
-      <label class="field-label">今天想搞定什么事？</label>
-      <textarea id="task-input" class="task-input" placeholder="例如：把这周周报写完 / 收拾一下桌面 / 学完 React 第 3 章 / 准备明天的评审会…" rows="3"></textarea>
+    <!-- ==================== Main ==================== -->
+    <main class="ios-main">
 
-      <div class="row-between">
-        <div class="chips">
-          <span class="chip" data-example="把这周的周报写完">📝 写周报</span>
-          <span class="chip" data-example="收拾一下我的桌面">🧹 打扫桌面</span>
-          <span class="chip" data-example="学完 React 官方教程第 3 章">📚 学 React</span>
-          <span class="chip" data-example="去操场慢跑 5km">🏃 跑步</span>
+      <!-- Home dashboard -->
+      <section class="view view-home" data-view="home">
+        <h1 class="ios-large-title fade-in">早上好 👋</h1>
+        <div class="ios-large-title-sub" id="home-greeting-sub">看看今天要征服哪一件小事？</div>
+
+        <div class="home-hero-tasks fade-in delay-1" id="home-hero">
+          <div class="home-hero-title">今日</div>
+          <div class="home-hero-num" id="home-hero-num">0</div>
+          <div class="home-hero-sub" id="home-hero-sub">步骤 · 保持节奏，一步一步来</div>
         </div>
-      </div>
 
-      <div class="settings-hint" id="llm-hint">
-        <span class="dot"></span>
-        <span id="llm-hint-text">加载中…</span>
-      </div>
+        <div id="home-active-slot"></div>
 
-      <button id="btn-breakdown" class="btn primary big">
-        <span class="btn-emoji">✂️</span>拆成傻瓜步骤，开干！
-      </button>
-
-      <div id="resume-card" class="resume-card hidden">
-        <div class="resume-title">上次还有一个任务没完成 👇</div>
-        <div class="resume-body">
-          <div class="resume-goal" id="resume-goal">—</div>
-          <div class="resume-progress">已完成 <span id="resume-done">0</span>/<span id="resume-total">0</span> 步</div>
+        <div class="home-quick-grid fade-in delay-2">
+          <button class="home-quick-tile" data-jump-tab="task">
+            <div class="home-quick-icon" style="background:rgba(0,122,255,0.14);color:var(--ios-blue)">📋</div>
+            <div class="home-quick-title">新任务</div>
+            <div class="home-quick-sub">拆解一件事</div>
+          </button>
+          <button class="home-quick-tile" data-jump-tab="pet">
+            <div class="home-quick-icon" style="background:rgba(52,199,89,0.14);color:var(--ios-green)">🐑</div>
+            <div class="home-quick-title">宠物之家</div>
+            <div class="home-quick-sub">喂养 & 心情</div>
+          </button>
+          <button class="home-quick-tile" data-jump-tab="calendar">
+            <div class="home-quick-icon" style="background:rgba(255,149,0,0.14);color:var(--ios-orange)">📅</div>
+            <div class="home-quick-title">打卡记录</div>
+            <div class="home-quick-sub">30 / 90 天热力</div>
+          </button>
+          <button class="home-quick-tile" id="home-quick-team">
+            <div class="home-quick-icon" style="background:rgba(175,82,222,0.14);color:var(--ios-purple)">👥</div>
+            <div class="home-quick-title">组队</div>
+            <div class="home-quick-sub" id="home-team-sub">和伙伴一起</div>
+          </button>
         </div>
-        <div class="resume-actions">
-          <button id="btn-resume" class="btn small primary">继续</button>
-          <button id="btn-discard" class="btn small ghost" data-confirm-text="再点一次确认丢弃">丢弃</button>
+
+        <div class="ios-section fade-in delay-3">
+          <div class="ios-section-header">今日统计</div>
+          <div class="ios-group">
+            <div class="ios-row">
+              <div class="ios-row-icon tint-blue">📋</div>
+              <div class="ios-row-body"><div class="ios-row-title">完成步骤</div></div>
+              <div class="ios-row-right" id="home-today-steps">0 步</div>
+            </div>
+            <div class="ios-row">
+              <div class="ios-row-icon tint-green">🌱</div>
+              <div class="ios-row-body"><div class="ios-row-title">获得养料</div></div>
+              <div class="ios-row-right" id="home-today-food">0</div>
+            </div>
+            <div class="ios-row">
+              <div class="ios-row-icon tint-orange">🔥</div>
+              <div class="ios-row-body"><div class="ios-row-title">连续打卡</div></div>
+              <div class="ios-row-right" id="home-streak">0 天</div>
+            </div>
+            <div class="ios-row tappable" data-jump-tab="pet">
+              <div class="ios-row-icon tint-purple">🐑</div>
+              <div class="ios-row-body">
+                <div class="ios-row-title">宠物等级</div>
+                <div class="ios-row-sub" id="home-pet-sub">Lv.1 · 亲密度 0</div>
+              </div>
+              <div class="ios-row-right"><span class="ios-chevron">›</span></div>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div id="tasks-card" class="tasks-card hidden">
-        <div class="tasks-card-head">
-          <span class="tasks-card-title">🗂 你的多个任务（<span id="tasks-count">0</span>）</span>
-          <span class="tasks-card-sub">继续 / 丢弃 都支持一键操作</span>
+      <!-- Task input / breakdown -->
+      <section class="view view-input hidden" data-view="input">
+        <h1 class="ios-large-title">新任务</h1>
+        <div class="ios-large-title-sub">告诉懒羊羊要做什么，它会拆成傻瓜步骤。</div>
+
+        <label class="field-label">今天想搞定什么事？</label>
+        <textarea id="task-input" class="task-input" placeholder="例如：把这周周报写完 / 收拾一下桌面 / 学完 React 第 3 章 / 准备明天的评审会…" rows="3"></textarea>
+
+        <div class="chips-grid">
+          <button type="button" class="chip" data-example="把这周的周报写完">📝 写周报</button>
+          <button type="button" class="chip" data-example="收拾一下我的桌面">🧹 打扫桌面</button>
+          <button type="button" class="chip" data-example="学完 React 官方教程第 3 章">📚 学 React</button>
+          <button type="button" class="chip" data-example="去操场慢跑 5km">🏃 跑步</button>
         </div>
-        <ul id="tasks-list" class="tasks-list"></ul>
-      </div>
-    </section>
 
-    <section class="view view-plan hidden" data-view="plan">
-      <div class="goal-line">
-        <span class="goal-label">目标</span>
-        <span class="goal-text" id="plan-goal">—</span>
-      </div>
+        <div class="settings-hint" id="llm-hint">
+          <span class="dot"></span>
+          <span id="llm-hint-text">加载中…</span>
+        </div>
 
-      <div class="plan-meta" id="plan-meta"></div>
-      <div class="plan-hint">这是懒羊羊帮你拆好的步骤，可以先浏览 / 微调再开始 👇</div>
-      <ol class="plan-list" id="plan-list"></ol>
-
-      <div class="plan-actions">
-        <button id="btn-add-step" class="btn tiny ghost">＋ 新增一步</button>
-        <button id="btn-rebreakdown" class="btn tiny ghost">🔁 重新拆</button>
-      </div>
-
-      <div class="plan-cta">
-        <button id="btn-back-input" class="btn ghost">返回</button>
-        <button id="btn-start" class="btn primary big">
-          <span class="btn-emoji">🚀</span>开始，一步一步做！
+        <button id="btn-breakdown" class="ios-btn ios-btn-primary big block">
+          <span class="btn-emoji">✂️</span>拆成傻瓜步骤，开干！
         </button>
-      </div>
-    </section>
 
-    <section class="view view-steps hidden" data-view="steps">
-      <div class="goal-line goal-line-step">
-        <div class="goal-line-main">
+        <div id="resume-card" class="resume-card hidden">
+          <div class="resume-title">上次还有一个任务没完成 👇</div>
+          <div class="resume-body">
+            <div class="resume-goal" id="resume-goal">—</div>
+            <div class="resume-progress">已完成 <span id="resume-done">0</span>/<span id="resume-total">0</span> 步</div>
+          </div>
+          <div class="resume-actions">
+            <button id="btn-resume" class="ios-btn ios-btn-primary small">继续</button>
+            <button id="btn-discard" class="ios-btn ios-btn-destructive small" data-confirm-text="再点一次确认丢弃">丢弃</button>
+          </div>
+        </div>
+
+        <div id="tasks-card" class="tasks-card hidden">
+          <div class="tasks-card-head">
+            <span class="tasks-card-title">🗂 你的多个任务（<span id="tasks-count">0</span>）</span>
+            <span class="tasks-card-sub">继续 / 丢弃 一键操作</span>
+          </div>
+          <ul id="tasks-list" class="tasks-list"></ul>
+        </div>
+      </section>
+
+      <!-- Plan preview -->
+      <section class="view view-plan hidden" data-view="plan">
+        <h1 class="ios-large-title">拆解结果</h1>
+        <div class="goal-line">
           <span class="goal-label">目标</span>
-          <span class="goal-text" id="goal-text">—</span>
+          <span class="goal-text" id="plan-goal">—</span>
         </div>
-        <button id="btn-step-discard" class="icon-btn danger tiny-icon-btn" title="丢弃当前任务" data-confirm-text="再点一次确认丢弃">🗑</button>
-      </div>
 
-      <div class="progress-wrap">
-        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-        <div class="progress-text">
-          <span id="step-index">1</span> / <span id="step-total">1</span>
-          &nbsp;·&nbsp; 累计已完成 <span id="lifetime-steps">0</span> 步
+        <div class="plan-meta" id="plan-meta"></div>
+        <div class="plan-hint">懒羊羊帮你拆好的步骤，浏览 / 微调之后再开始 👇</div>
+        <ol class="plan-list" id="plan-list"></ol>
+
+        <div class="plan-actions">
+          <button id="btn-add-step" class="ios-btn tiny ios-btn-secondary">＋ 新增一步</button>
+          <button id="btn-rebreakdown" class="ios-btn tiny ios-btn-ghost">🔁 重新拆</button>
         </div>
-      </div>
 
-      <div class="step-card" id="step-card">
-        <div class="step-tag">现在只需要做这一件小事</div>
-        <div class="step-title" id="step-title">—</div>
-        <div class="step-detail" id="step-detail">—</div>
-        <div class="step-meta">
-          <span class="step-est" id="step-est">~ 3 分钟</span>
-          <button id="btn-privacy-cycle" class="chip-btn privacy-chip" title="循环切换：公开 / 仅隐藏标题 / 完全隐私">🔓 公开</button>
-          <button id="btn-refine" class="chip-btn" title="让懒羊羊把这一步再拆一层">🍃 太难？再拆一层</button>
+        <div class="plan-cta">
+          <button id="btn-back-input" class="ios-btn ios-btn-secondary">返回</button>
+          <button id="btn-start" class="ios-btn ios-btn-primary big">
+            <span class="btn-emoji">🚀</span>开始，一步一步做！
+          </button>
         </div>
-      </div>
+      </section>
 
-      <div class="mascot-line">
-        <img src="../icons/icon-128.png" class="mascot" alt="懒羊羊" />
-        <div class="mascot-say" id="mascot-say">“简单到不能再简单啦，来嘛来嘛～”</div>
-      </div>
-
-      <div class="stimer-card" id="stimer-card" data-phase="idle">
-        <div class="stimer-row">
-          <div class="stimer-badge" id="stimer-badge">🕐 步骤倒计时 · 未开始</div>
-          <div class="stimer-time" id="stimer-time">--:--</div>
-        </div>
-        <div class="stimer-hint" id="stimer-hint">这一步预计 <b id="stimer-plan">3</b> 分钟。点 🕐 开始倒计时，时间到会响一下～</div>
-        <div class="stimer-actions">
-          <button id="btn-stimer-start" class="btn tiny primary">🕐 开始 <span id="btn-stimer-plan">3</span> 分钟倒计时</button>
-          <button id="btn-stimer-pause" class="btn tiny ghost hidden">⏸ 暂停</button>
-          <button id="btn-stimer-resume" class="btn tiny primary hidden">▶ 继续</button>
-          <button id="btn-stimer-add" class="btn tiny ghost hidden">＋1 分钟</button>
-          <button id="btn-stimer-stop" class="btn tiny ghost hidden">⏹ 停止</button>
-        </div>
-      </div>
-
-      <div class="step-actions">
-        <button id="btn-skip" class="btn ghost">跳过这步</button>
-        <button id="btn-done" class="btn primary big">
-          <span class="btn-emoji">✅</span>完成，下一步！
-        </button>
-      </div>
-
-      <div class="steps-mini">
-        <div class="steps-mini-title">全部步骤</div>
-        <ol id="steps-list" class="steps-list"></ol>
-      </div>
-
-      <div class="bottom-actions">
-        <button id="btn-back-tasks" class="btn tiny ghost">🗂 切到其他任务</button>
-        <button id="btn-quit" class="btn tiny ghost" data-confirm-text="再点一次确认放弃">放弃任务</button>
-      </div>
-    </section>
-
-    <section class="view view-done hidden" data-view="done">
-      <div class="done-anim">
-        <img src="../icons/icon-256.png" class="mascot-big" alt="懒羊羊大王" />
-        <div class="crown">👑</div>
-      </div>
-      <div class="done-title">恭喜大王，任务圆满达成！</div>
-      <div class="done-sub" id="done-sub">你已经比 99% 的懒羊羊更勤快啦～</div>
-
-      <div class="stats-row">
-        <div class="stat">
-          <div class="stat-num" id="stat-steps">0</div>
-          <div class="stat-label">累计完成步数</div>
-        </div>
-        <div class="stat">
-          <div class="stat-num" id="stat-tasks">0</div>
-          <div class="stat-label">累计完成任务</div>
-        </div>
-        <div class="stat">
-          <div class="stat-num" id="stat-food">0</div>
-          <div class="stat-label">当前养料</div>
-        </div>
-      </div>
-
-      <div class="pet-preview">
-        <div class="pet-preview-title">🐣 宠物反馈已上线</div>
-        <div class="pet-preview-body">
-          现在可以查看 <b>累计喂养、今日喂养、连续喂养天数</b>，还有亲密度进度条、喂养历史和投喂动画。<br/>
-          当前养料库存：<b id="pet-food-2">0</b> · 等级 Lv.<b id="pet-lv">1</b>
-        </div>
-      </div>
-
-      <div class="done-actions">
-        <button id="btn-goto-pet" class="btn ghost">🏠 去宠物之家</button>
-        <button id="btn-new-task" class="btn primary big">再来一个任务！</button>
-      </div>
-    </section>
-
-    <section class="view view-pet hidden" data-view="pet">
-      <div class="pet-header">
-        <div class="pet-header-title">🏠 宠物之家 <span class="v2-badge">v0.3.4</span></div>
-        <button id="btn-pet-back" class="icon-btn" title="返回">←</button>
-      </div>
-
-      <div class="pet-stats-header">
-        🌟 累计养料喂出 <b id="pet-total-all">0</b>
-        <span class="divider">·</span>
-        今日喂养 <b id="pet-total-today">0</b>
-        <span class="divider">·</span>
-        连续 <b id="pet-streak">0</b> 天
-      </div>
-
-      <div class="pet-stage" id="pet-stage">
-        <div class="pet-avatar-wrap" id="pet-avatar-wrap">
-          <div class="pet-avatar" id="pet-avatar">🐑</div>
-          <div class="pet-heart-layer" id="pet-heart-layer"></div>
-        </div>
-        <div class="pet-mood" id="pet-mood">😊</div>
-        <div class="pet-name" id="pet-name">懒羊羊</div>
-        <div class="pet-desc" id="pet-desc">—</div>
-      </div>
-
-      <div class="pet-stats">
-        <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-lv">1</div><div class="pet-stat-label">等级</div></div>
-        <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-food">0</div><div class="pet-stat-label">养料库存</div></div>
-        <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-fed">0</div><div class="pet-stat-label">累计喂养</div></div>
-      </div>
-
-      <div class="pet-actions">
-        <button id="btn-feed" class="btn primary big">🍼 喂一次（消耗 5 养料）</button>
-      </div>
-
-      <details class="pet-history" id="pet-history-box">
-        <summary>喂养历史（最近 10 条）</summary>
-        <ul class="pet-history-list" id="pet-history-list"></ul>
-      </details>
-
-      <div class="pet-picker-title">切换宠物 · 每只都会记录独立亲密度</div>
-      <div class="pet-picker" id="pet-picker"></div>
-
-      <div class="pet-actions-row" id="pet-actions-row">
-        <button id="btn-upload-custom" class="btn btn-small">🖼 上传/更换形象</button>
-        <button id="btn-toggle-cartoon" class="btn btn-small">✨ 卡通化</button>
-      </div>
-
-      <input type="file" id="pet-upload" accept="image/*" style="display:none" />
-
-      <div class="pet-footer-note">
-        喂养会累计亲密度、触发投喂动画和勋章提示；最近喂养记录最多保留 200 条。
-      </div>
-    </section>
-
-    <section class="view view-calendar hidden" data-view="calendar">
-      <div class="cal-header">
-        <div class="cal-header-title">📅 完成日历打卡图</div>
-        <button id="btn-cal-back" class="icon-btn" title="返回">← 返回</button>
-      </div>
-
-      <div class="cal-stats">
-        <div class="cal-stat"><div class="cal-stat-num" id="cal-stat-tasks">0</div><div class="cal-stat-label">完成任务</div></div>
-        <div class="cal-stat"><div class="cal-stat-num" id="cal-stat-steps">0</div><div class="cal-stat-label">完成步骤</div></div>
-        <div class="cal-stat"><div class="cal-stat-num" id="cal-stat-streak">0</div><div class="cal-stat-label">连续打卡</div></div>
-        <div class="cal-stat"><div class="cal-stat-num" id="cal-stat-food">0</div><div class="cal-stat-label">总养料</div></div>
-      </div>
-
-      <div class="cal-range">
-        <span class="cal-range-label" id="cal-range-label">近 30 天</span>
-        <div class="cal-range-switch">
-          <button id="btn-cal-30" class="cal-seg active">30 天</button>
-          <button id="btn-cal-90" class="cal-seg">90 天</button>
-        </div>
-      </div>
-
-      <div class="cal-heatmap" id="cal-heatmap"></div>
-
-      <div class="cal-legend">
-        <span class="cal-legend-label">少</span>
-        <span class="cal-cell" data-level="0"></span>
-        <span class="cal-cell" data-level="1"></span>
-        <span class="cal-cell" data-level="2"></span>
-        <span class="cal-cell" data-level="3"></span>
-        <span class="cal-cell" data-level="4"></span>
-        <span class="cal-legend-label">多（10+）</span>
-      </div>
-
-      <div class="cal-footer-note">绿色越深，当天完成的步骤越多 · 连续打卡即当天步骤 &gt; 0</div>
-    </section>
-
-    <section class="view view-team hidden" data-view="team">
-      <div class="team-header-bar">
-        <div class="team-header-title">👥 组队模式</div>
-        <button id="btn-team-back" class="icon-btn" title="返回">←</button>
-      </div>
-      <div id="team-root"></div>
-      <input id="team-snapshot-file-input" type="file" accept="application/json" style="display:none" />
-    </section>
-
-    <section class="view view-my hidden" data-view="my">
-      <div class="my-header">
-        <div class="my-header-title">👤 我的</div>
-        <button id="btn-my-back" class="icon-btn" title="返回">←</button>
-      </div>
-
-      <div class="account-card" id="account-card">
-        <div class="account-avatar-wrap">
-          <img id="account-avatar-img" class="account-avatar-img hidden" alt="头像" />
-          <div id="account-avatar-fallback" class="account-avatar-fallback">🐑</div>
-          <span id="account-verified" class="verified-badge hidden" title="GitHub 已验证身份">✔</span>
-        </div>
-        <div class="account-main">
-          <div class="account-name-row">
-            <input id="account-display-name" class="account-name-input" placeholder="给自己起个名字" />
-            <button id="btn-account-save-name" class="btn tiny ghost" title="保存昵称">保存</button>
+      <!-- Steps -->
+      <section class="view view-steps hidden" data-view="steps">
+        <div class="goal-line goal-line-step">
+          <div class="goal-line-main">
+            <span class="goal-label">目标</span>
+            <span class="goal-text" id="goal-text">—</span>
           </div>
-          <div class="account-chip-row">
-            <span id="account-mode-chip" class="mode-chip mode-guest">👤 访客</span>
-            <button id="btn-account-lock" class="btn tiny ghost hidden">🔒 锁定</button>
+          <button id="btn-step-discard" class="ios-icon-btn danger tiny" title="丢弃当前任务" data-confirm-text="再点一次确认丢弃">🗑</button>
+        </div>
+
+        <div class="progress-wrap">
+          <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+          <div class="progress-text">
+            <span id="step-index">1</span> / <span id="step-total">1</span>
+            &nbsp;·&nbsp; 累计已完成 <span id="lifetime-steps">0</span> 步
           </div>
-          <div class="account-sub" id="account-sub">匿名模式 · 数据仅保存在本机</div>
         </div>
-      </div>
 
-      <div class="my-card">
-        <div class="my-card-title">🔐 账号与认证</div>
-        <div class="my-card-sub" id="auth-hint-text">选择一种免费方式创建账号，多设备也能找回你的进度。</div>
-        <div class="account-actions" id="account-actions"><!-- 由 JS 按当前模式渲染 --></div>
-      </div>
-
-      <div class="my-card">
-        <div class="my-card-title">🍃 免费 AI 精修</div>
-        <div class="my-card-sub" id="ai-status-text">检测中…</div>
-        <label class="my-toggle-row">
-          <input id="my-ai-rerank-enabled" type="checkbox" />
-          启用 AI 精修（免费）
-        </label>
-        <div class="my-card-sub">本功能仅使用免费方案，不产生任何 API 费用。</div>
-      </div>
-
-      <div class="my-card">
-        <div class="my-card-title">☁️ 跨设备同步基础</div>
-        <div class="my-card-sub" id="sync-support-text">检测中…</div>
-        <button id="btn-sync-toggle" class="btn ghost">🔄 启用跨设备同步（Chrome 账号）</button>
-      </div>
-
-      <div class="my-card">
-        <div class="my-card-title">📦 备份与恢复</div>
-        <div class="my-actions-grid">
-          <button id="btn-export-backup" class="btn ghost">📤 导出备份</button>
-          <button id="btn-import-backup" class="btn ghost">📥 导入备份</button>
-          <button id="btn-regenerate-user-id" class="btn ghost">🆕 生成新用户 ID</button>
-          <button id="btn-open-options-from-my" class="btn ghost">⚙ 打开完整设置</button>
+        <div class="step-card" id="step-card">
+          <div class="step-tag">现在只需要做这一件小事</div>
+          <div class="step-title" id="step-title">—</div>
+          <div class="step-detail" id="step-detail">—</div>
+          <div class="step-meta">
+            <span class="step-est" id="step-est">~ 3 分钟</span>
+            <button id="btn-privacy-cycle" class="chip-btn privacy-chip" title="循环切换：公开 / 仅隐藏标题 / 完全隐私">🔓 公开</button>
+            <button id="btn-refine" class="chip-btn" title="让懒羊羊把这一步再拆一层">🍃 太难？再拆一层</button>
+          </div>
         </div>
-        <div class="my-card-sub" id="backup-enc-hint">导入会按合并策略处理任务 / 历史 / 统计；本地密码账号导出的备份会自动加密。</div>
-      </div>
 
-      <div class="my-card">
-        <div class="my-card-title">ℹ️ 账户信息</div>
-        <div class="my-row">
-          <span class="my-label">用户 ID</span>
-          <code id="my-user-id">usr_******</code>
+        <div class="mascot-line">
+          <img src="../icons/mascot.png" class="mascot" alt="懒羊羊" />
+          <div class="mascot-say" id="mascot-say">"简单到不能再简单啦，来嘛来嘛～"</div>
         </div>
-        <div class="my-row">
-          <span class="my-label">设备</span>
-          <span id="my-device-label">Web</span>
-        </div>
-        <div class="my-row">
-          <span class="my-label">创建时间</span>
-          <span id="my-created-at">—</span>
-        </div>
-      </div>
 
-      <input id="backup-file-input" type="file" accept="application/json" style="display:none" />
-    </section>
+        <div class="stimer-card" id="stimer-card" data-phase="idle">
+          <div class="stimer-row">
+            <div class="stimer-badge" id="stimer-badge">🕐 步骤倒计时 · 未开始</div>
+            <div class="stimer-time" id="stimer-time">--:--</div>
+          </div>
+          <div class="stimer-hint" id="stimer-hint">这一步预计 <b id="stimer-plan">3</b> 分钟。点 🕐 开始倒计时，时间到会响一下～</div>
+          <div class="stimer-actions">
+            <button id="btn-stimer-start" class="ios-btn tiny ios-btn-primary">🕐 开始 <span id="btn-stimer-plan">3</span> 分钟</button>
+            <button id="btn-stimer-pause" class="ios-btn tiny ios-btn-secondary hidden">⏸ 暂停</button>
+            <button id="btn-stimer-resume" class="ios-btn tiny ios-btn-primary hidden">▶ 继续</button>
+            <button id="btn-stimer-add" class="ios-btn tiny ios-btn-secondary hidden">＋1 分钟</button>
+            <button id="btn-stimer-stop" class="ios-btn tiny ios-btn-destructive hidden">⏹ 停止</button>
+          </div>
+        </div>
+
+        <div class="step-actions">
+          <button id="btn-skip" class="ios-btn ios-btn-secondary">跳过这步</button>
+          <button id="btn-done" class="ios-btn ios-btn-primary big">
+            <span class="btn-emoji">✅</span>完成，下一步！
+          </button>
+        </div>
+
+        <div class="steps-mini">
+          <div class="steps-mini-title">全部步骤</div>
+          <ol id="steps-list" class="steps-list"></ol>
+        </div>
+
+        <div class="bottom-actions">
+          <button id="btn-back-tasks" class="ios-btn tiny ios-btn-ghost">🗂 切到其他任务</button>
+          <button id="btn-quit" class="ios-btn tiny ios-btn-destructive" data-confirm-text="再点一次确认放弃">放弃任务</button>
+        </div>
+      </section>
+
+      <!-- Done -->
+      <section class="view view-done hidden" data-view="done">
+        <div class="done-anim">
+          <img src="../icons/icon-256.png" class="mascot-big" alt="懒羊羊大王" />
+          <div class="crown">👑</div>
+        </div>
+        <div class="done-title">恭喜大王，任务圆满达成！</div>
+        <div class="done-sub" id="done-sub">你已经比 99% 的懒羊羊更勤快啦～</div>
+
+        <div class="stats-row">
+          <div class="stat"><div class="stat-num" id="stat-steps">0</div><div class="stat-label">累计步数</div></div>
+          <div class="stat"><div class="stat-num" id="stat-tasks">0</div><div class="stat-label">累计任务</div></div>
+          <div class="stat"><div class="stat-num" id="stat-food">0</div><div class="stat-label">当前养料</div></div>
+        </div>
+
+        <div class="pet-preview">
+          <div class="pet-preview-title">🐣 宠物反馈已上线</div>
+          <div class="pet-preview-body">
+            现在可以查看 <b>累计喂养、今日喂养、连续喂养天数</b>，亲密度进度条、喂养历史都在宠物页。<br/>
+            当前养料库存：<b id="pet-food-2">0</b> · 等级 Lv.<b id="pet-lv">1</b>
+          </div>
+        </div>
+
+        <div class="done-actions">
+          <button id="btn-goto-pet" class="ios-btn ios-btn-secondary">🏠 去宠物之家</button>
+          <button id="btn-new-task" class="ios-btn ios-btn-primary big">再来一个任务！</button>
+        </div>
+      </section>
+
+      <!-- Pet -->
+      <section class="view view-pet hidden" data-view="pet">
+        <h1 class="ios-large-title">宠物之家 <span class="v2-badge">v0.4.0</span></h1>
+
+        <div class="pet-stats-header">
+          🌟 累计养料喂出 <b id="pet-total-all">0</b>
+          <span class="divider">·</span>
+          今日喂养 <b id="pet-total-today">0</b>
+          <span class="divider">·</span>
+          连续 <b id="pet-streak">0</b> 天
+        </div>
+
+        <div class="pet-stage" id="pet-stage">
+          <div class="pet-avatar-wrap" id="pet-avatar-wrap">
+            <div class="pet-avatar" id="pet-avatar">🐑</div>
+            <div class="pet-heart-layer" id="pet-heart-layer"></div>
+          </div>
+          <div class="pet-mood" id="pet-mood">😊</div>
+          <div class="pet-name" id="pet-name">懒羊羊</div>
+          <div class="pet-desc" id="pet-desc">—</div>
+        </div>
+
+        <div class="pet-milestones" id="pet-milestones"></div>
+
+        <div class="pet-stats">
+          <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-lv">1</div><div class="pet-stat-label">等级</div></div>
+          <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-food">0</div><div class="pet-stat-label">养料库存</div></div>
+          <div class="pet-stat"><div class="pet-stat-num" id="pet-stat-fed">0</div><div class="pet-stat-label">累计喂养</div></div>
+        </div>
+
+        <div class="pet-actions">
+          <button id="btn-feed" class="ios-btn ios-btn-primary big block">🍼 喂一次（消耗 5 养料）</button>
+        </div>
+
+        <details class="pet-history" id="pet-history-box">
+          <summary>喂养历史（最近 10 条）</summary>
+          <ul class="pet-history-list" id="pet-history-list"></ul>
+        </details>
+
+        <div class="pet-picker-title">切换宠物 · 每只都会记录独立亲密度</div>
+        <div class="pet-picker" id="pet-picker"></div>
+
+        <div class="pet-actions-row" id="pet-actions-row">
+          <button id="btn-upload-custom" class="ios-btn small ios-btn-secondary">🖼 上传形象</button>
+          <button id="btn-toggle-cartoon" class="ios-btn small ios-btn-secondary">✨ 卡通化</button>
+        </div>
+
+        <input type="file" id="pet-upload" accept="image/*" style="display:none" />
+
+        <div class="pet-footer-note">
+          喂养会累计亲密度、触发投喂动画和勋章提示；最近喂养记录最多保留 200 条。
+        </div>
+      </section>
+
+      <!-- Calendar -->
+      <section class="view view-calendar hidden" data-view="calendar">
+        <h1 class="ios-large-title">打卡记录</h1>
+
+        <div class="cal-stats">
+          <div class="cal-stat"><div class="cal-stat-num" id="cal-stat-tasks">0</div><div class="cal-stat-label">任务</div></div>
+          <div class="cal-stat"><div class="cal-stat-num" id="cal-stat-steps">0</div><div class="cal-stat-label">步骤</div></div>
+          <div class="cal-stat"><div class="cal-stat-num" id="cal-stat-streak">0</div><div class="cal-stat-label">连续</div></div>
+          <div class="cal-stat"><div class="cal-stat-num" id="cal-stat-food">0</div><div class="cal-stat-label">养料</div></div>
+        </div>
+
+        <div class="cal-range">
+          <span class="cal-range-label" id="cal-range-label">近 30 天</span>
+          <div class="cal-range-switch">
+            <button id="btn-cal-30" class="cal-seg active">30 天</button>
+            <button id="btn-cal-90" class="cal-seg">90 天</button>
+          </div>
+        </div>
+
+        <div class="cal-heatmap" id="cal-heatmap"></div>
+
+        <div class="cal-legend">
+          <span class="cal-legend-label">少</span>
+          <span class="cal-cell" data-level="0"></span>
+          <span class="cal-cell" data-level="1"></span>
+          <span class="cal-cell" data-level="2"></span>
+          <span class="cal-cell" data-level="3"></span>
+          <span class="cal-cell" data-level="4"></span>
+          <span class="cal-legend-label">多（10+）</span>
+        </div>
+
+        <div class="cal-footer-note">绿色越深，当天完成的步骤越多 · 连续打卡即当天步骤 &gt; 0</div>
+      </section>
+
+      <!-- Team -->
+      <section class="view view-team hidden" data-view="team">
+        <h1 class="ios-large-title">组队模式</h1>
+        <div id="team-root"></div>
+        <input id="team-snapshot-file-input" type="file" accept="application/json" style="display:none" />
+      </section>
+
+      <!-- My -->
+      <section class="view view-my hidden" data-view="my">
+        <h1 class="ios-large-title">我的</h1>
+
+        <div class="account-card" id="account-card">
+          <div class="account-avatar-wrap">
+            <img id="account-avatar-img" class="account-avatar-img hidden" alt="头像" />
+            <div id="account-avatar-fallback" class="account-avatar-fallback">🐑</div>
+            <span id="account-verified" class="verified-badge hidden" title="GitHub 已验证身份">✔</span>
+          </div>
+          <div class="account-main">
+            <div class="account-name-row">
+              <input id="account-display-name" class="account-name-input" placeholder="给自己起个名字" />
+              <button id="btn-account-save-name" class="ios-btn tiny ios-btn-ghost" title="保存昵称">保存</button>
+            </div>
+            <div class="account-chip-row">
+              <span id="account-mode-chip" class="mode-chip mode-guest">👤 访客</span>
+              <button id="btn-account-lock" class="ios-btn tiny ios-btn-ghost hidden">🔒 锁定</button>
+            </div>
+            <div class="account-sub" id="account-sub">匿名模式 · 数据仅保存在本机</div>
+          </div>
+        </div>
+
+        <div class="my-card">
+          <div class="my-card-title">🔐 账号与认证</div>
+          <div class="my-card-sub" id="auth-hint-text">选择一种免费方式创建账号，多设备也能找回你的进度。</div>
+          <div class="account-actions" id="account-actions"><!-- 由 JS 按当前模式渲染 --></div>
+        </div>
+
+        <div class="my-card">
+          <div class="my-card-title">🍃 免费 AI 精修</div>
+          <div class="my-card-sub" id="ai-status-text">检测中…</div>
+          <label class="my-toggle-row">
+            <input id="my-ai-rerank-enabled" type="checkbox" />
+            启用 AI 精修（免费）
+          </label>
+          <div class="my-card-sub">本功能仅使用免费方案，不产生任何 API 费用。</div>
+        </div>
+
+        <div class="my-card">
+          <div class="my-card-title">☁️ 跨设备同步基础</div>
+          <div class="my-card-sub" id="sync-support-text">检测中…</div>
+          <button id="btn-sync-toggle" class="ios-btn ios-btn-secondary block">🔄 启用跨设备同步（Chrome 账号）</button>
+        </div>
+
+        <div class="my-card">
+          <div class="my-card-title">📦 备份与恢复</div>
+          <div class="my-actions-grid">
+            <button id="btn-export-backup" class="ios-btn small ios-btn-secondary">📤 导出</button>
+            <button id="btn-import-backup" class="ios-btn small ios-btn-secondary">📥 导入</button>
+            <button id="btn-regenerate-user-id" class="ios-btn small ios-btn-secondary">🆕 新 ID</button>
+            <button id="btn-open-options-from-my" class="ios-btn small ios-btn-secondary">⚙ 设置</button>
+          </div>
+          <div class="my-card-sub" id="backup-enc-hint">导入会按合并策略处理任务 / 历史 / 统计；本地密码账号导出的备份会自动加密。</div>
+        </div>
+
+        <div class="my-card">
+          <div class="my-card-title">ℹ️ 账户信息</div>
+          <div class="my-row">
+            <span class="my-label">用户 ID</span>
+            <code id="my-user-id">usr_******</code>
+          </div>
+          <div class="my-row">
+            <span class="my-label">设备</span>
+            <span id="my-device-label">Web</span>
+          </div>
+          <div class="my-row">
+            <span class="my-label">创建时间</span>
+            <span id="my-created-at">—</span>
+          </div>
+          <div class="my-row">
+            <span class="my-label">复制 ID</span>
+            <button id="user-badge" class="ios-btn tiny ios-btn-ghost" title="点击复制用户 ID">usr_******</button>
+          </div>
+        </div>
+
+        <input id="backup-file-input" type="file" accept="application/json" style="display:none" />
+      </section>
+
+    </main>
+
+    <!-- ==================== Bottom Tab Bar ==================== -->
+    <nav class="ios-tabbar" role="tablist" aria-label="主导航">
+      <button class="ios-tabbar-item active" data-tab="home" role="tab">
+        <span class="ios-tabbar-icon">🏠</span>
+        <span>首页</span>
+      </button>
+      <button class="ios-tabbar-item" data-tab="task" role="tab">
+        <span class="ios-tabbar-icon">📋</span>
+        <span>任务</span>
+      </button>
+      <button class="ios-tabbar-item" data-tab="pet" role="tab">
+        <span class="ios-tabbar-icon">🐑</span>
+        <span>宠物</span>
+      </button>
+      <button class="ios-tabbar-item" data-tab="calendar" role="tab">
+        <span class="ios-tabbar-icon">📅</span>
+        <span>打卡</span>
+      </button>
+      <button class="ios-tabbar-item" data-tab="my" role="tab">
+        <span class="ios-tabbar-icon">👤</span>
+        <span>我的</span>
+      </button>
+    </nav>
 
     <!-- 登录 / 创建账号 弹窗 -->
     <div id="sign-in-modal" class="modal-overlay hidden" data-tab="passphrase">
       <div class="modal-box">
         <div class="modal-head">
           <div class="modal-title" id="sign-in-title">创建 / 登录账号</div>
-          <button id="btn-modal-close" class="icon-btn" title="关闭">✕</button>
+          <button id="btn-modal-close" class="ios-icon-btn" title="关闭">✕</button>
         </div>
 
         <div class="modal-tabs">
@@ -400,7 +488,7 @@
           <label class="modal-label" id="pp-confirm-label">确认密码</label>
           <input id="pp-pass2" class="modal-input" type="password" placeholder="再输入一次" />
           <div class="modal-error hidden" id="pp-error"></div>
-          <button id="btn-pp-submit" class="btn primary big">🔐 创建本地密码账号</button>
+          <button id="btn-pp-submit" class="ios-btn ios-btn-primary big block" style="margin-top:12px">🔐 创建本地密码账号</button>
           <div class="modal-note">本地密码账号在任何环境（含网页试玩）都可用，密码只用于在本机派生加密密钥。</div>
         </div>
 
@@ -409,18 +497,15 @@
           <label class="modal-label">你的 GitHub OAuth App client_id</label>
           <input id="gh-client-id" class="modal-input" placeholder="Iv1.xxxxxxxxxxxx" />
           <div class="modal-note">
-            为保持“完全免费 + 完全归你所有”，我们不内置共享 client_id。请自行创建一个免费的
-            <b>GitHub OAuth App</b>（三步）：<br/>
-            1. 打开 GitHub → Settings → Developer settings → OAuth Apps → New；<br/>
-            2. 勾选 <b>Enable Device Flow</b>，Homepage/Callback 随意填；<br/>
-            3. 复制生成的 <b>Client ID</b> 粘贴到上面即可。
+            为保持"完全免费 + 完全归你所有"，我们不内置共享 client_id。请自建一个免费的
+            <b>GitHub OAuth App</b>：勾选 <b>Enable Device Flow</b>，把 Client ID 粘贴到上面即可。
           </div>
-          <button id="btn-gh-start" class="btn primary big">🐙 开始 GitHub 登录</button>
+          <button id="btn-gh-start" class="ios-btn ios-btn-primary big block" style="margin-top:12px">🐙 开始 GitHub 登录</button>
 
           <div class="gh-flow hidden" id="gh-flow">
             <div class="gh-code-row">
               <span class="gh-code" id="gh-user-code">---------</span>
-              <button id="btn-gh-copy" class="btn tiny ghost">📋 复制</button>
+              <button id="btn-gh-copy" class="ios-btn tiny ios-btn-secondary">📋 复制</button>
             </div>
             <div class="gh-qr" id="gh-qr"></div>
             <div class="gh-flow-hint">
@@ -433,12 +518,6 @@
         </div>
       </div>
     </div>
-
-
-    <footer class="footer-bar">
-      <button id="footer-home" class="footer-link">🏠 首页</button>
-      <button id="user-badge" class="user-badge" title="点击复制用户 ID">usr_******</button>
-    </footer>
   </div>
 
   <script src="popup.js" type="module"></script>
