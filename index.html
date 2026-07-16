@@ -3,8 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>懒羊羊大王 · 在线试玩 (v0.4.0 · iOS 原生风)</title>
+  <title>懒羊羊大王 · 在线试玩 (v0.5.0 · 多端形态)</title>
   <link rel="icon" href="icons/icon-48.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#007AFF" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="apple-touch-icon" href="icons/icon-256.png" />
   <style>
     :root {
       --ios-blue: #007AFF;
@@ -165,9 +169,11 @@
         <img src="icons/icon-128.png" alt="懒羊羊大王" />
         <div>
           <h1>懒羊羊大王 · 执行力浏览器插件</h1>
-          <p class="subtitle">v0.4.0 <b>iOS 原生风 UI 重构</b>：分组卡片列表 · SF 字重层级 · 系统蓝主色 · 底部 Tab Bar 毛玻璃 · 细腻的 cubic-bezier 动效 · 完整保留 v0.3.x 全部功能与账号体系。</p>
+          <p class="subtitle">v0.5.0 <b>多端形态</b>：响应式三栏 / 平板 / 手机布局 · PWA 安装 · Chrome 扩展 Open-in-Tab · 完整保留 v0.4.0 iOS 原生风 UI 重构。</p>
           <div class="badges">
-            <span class="badge new">v0.4.0</span>
+            <span class="badge new">v0.5.0</span>
+            <span class="badge">📱 PWA</span>
+            <span class="badge">🖥 响应式</span>
             <span class="badge">🎨 iOS 原生风</span>
             <span class="badge">Manifest V3</span>
             <span class="badge">🔐 认证账号</span>
@@ -178,19 +184,19 @@
       </header>
 
       <section class="card">
-        <h2>✨ v0.4.0 亮点（点击右侧试玩）</h2>
+        <h2>✨ v0.5.0 亮点（点击右侧试玩）</h2>
         <div class="feature-grid">
-          <div class="feature-item"><b>🍎 iOS 原生视觉</b><br/>圆角分组卡片、SF Pro + PingFang SC、系统蓝 <code>#007AFF</code>、iOS 6 色阶灰度</div>
-          <div class="feature-item"><b>📱 底部 Tab Bar</b><br/>首页 / 任务 / 宠物 / 打卡 / 我的，毛玻璃 <code>backdrop-filter: blur(12px)</code></div>
-          <div class="feature-item"><b>🏠 全新首页</b><br/>问候语 + 今日 hero 卡 + 进行中任务 + 4 格快捷 + 统计分组</div>
-          <div class="feature-item"><b>🎯 步骤圆圈化</b><br/>iOS 待办清单圆圈 check，当前项蓝色 halo，完成态绿色描边</div>
-          <div class="feature-item"><b>🌙 深色模式</b><br/><code>prefers-color-scheme: dark</code> 自适应，全局 tokens 一处切换</div>
-          <div class="feature-item"><b>💫 细腻动效</b><br/><code>cubic-bezier(0.4,0,0.2,1)</code> 300ms + stagger fadeIn + active scale 0.97</div>
-          <div class="feature-item"><b>🐑 懒羊羊真身</b><br/>topbar 32×32 头像、宠物页 96×96 hero，均保留原 mascot.png 资产</div>
-          <div class="feature-item"><b>0 功能回退</b><br/>163 个测试全部通过；任务 / 宠物 / 组队 / 认证账号完整保留</div>
+          <div class="feature-item"><b>📱 PWA 安装</b><br/>从浏览器直接安装到桌面/手机主屏幕，离线可用</div>
+          <div class="feature-item"><b>🖥 响应式三栏</b><br/>桌面三栏 / 平板侧栏 / 手机 Tab bar 无缝切换</div>
+          <div class="feature-item"><b>⤢ Open-in-Tab</b><br/>Chrome 扩展一键弹出到完整标签页，大屏体验</div>
+          <div class="feature-item"><b>🎛 桌面模式切换</b><br/>三栏 / 单列极简 两种模式，个性化选择</div>
+          <div class="feature-item"><b>📲 智能安装引导</b><br/>自动识别平台，iOS/Android/Desktop 分别引导</div>
+          <div class="feature-item"><b>⚡ 离线模式</b><br/>Service Worker 缓存 app shell，断网也能用</div>
+          <div class="feature-item"><b>🍎 iOS 原生视觉</b><br/>圆角分组卡片、系统蓝主色、毛玻璃 blur</div>
+          <div class="feature-item"><b>0 功能回退</b><br/>170+ 测试通过；v0.4.0 全部功能完整保留</div>
         </div>
         <div class="cost-note">
-          <b>兼容性：</b> 保留全部 v0.3.5 存储结构、认证账号系统、组队快照协议；本次仅重构 UI 层，无破坏性变更。
+          <b>PWA 安装：</b> iOS Safari → 分享 → 添加到主屏幕 | Android Chrome → 三点菜单 → 安装 | Mac Chrome → 地址栏 ⊕ 安装
         </div>
       </section>
 
@@ -223,9 +229,10 @@
         <ul>
           <li><span class="roadmap-check">✅</span> <b>v0.1 – v0.3.4</b> · 任务拆解 / 宠物养成 / 多任务 / 倒计时 / 日历 / 组队</li>
           <li><span class="roadmap-check">✅</span> <b>v0.3.5</b> · 认证账号系统（访客 / 本地密码 / GitHub Device Flow）</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.4.0</b> · <b>iOS 原生风 UI 重构</b> <em>← 当前版本</em></li>
-          <li><span class="roadmap-todo">☐</span> v0.5 · 宠物商店 / 换装 / 好友互动</li>
-          <li><span class="roadmap-todo">☐</span> v0.6 · Todoist / Notion / 飞书任务导入</li>
+          <li><span class="roadmap-check">✅</span> <b>v0.4.0</b> · iOS 原生风 UI 重构</li>
+          <li><span class="roadmap-check">✅</span> <b>v0.5.0</b> · <b>多端形态：响应式 + PWA + Open-in-Tab</b> <em>← 当前版本</em></li>
+          <li><span class="roadmap-todo">☐</span> v0.6 · 宠物商店 / 换装 / 好友互动</li>
+          <li><span class="roadmap-todo">☐</span> v0.7 · Todoist / Notion / 飞书任务导入</li>
         </ul>
         <div class="cta">
           <a href="https://github.com/ustiniankw/lazy-sheep-king" target="_blank">📦 GitHub 仓库</a>

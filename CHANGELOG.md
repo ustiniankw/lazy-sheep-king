@@ -1,5 +1,60 @@
 # CHANGELOG
 
+## v0.5.0 — 多端形态：响应式 + PWA + Open-in-Tab（2026-07-16）
+
+🚀 **在线试玩**：https://1e8add08b5ba.aime-app.bytedance.net
+
+> 多平台里程碑：三个 breakpoint 响应式布局（phone / tablet / desktop），PWA 离线安装，Chrome 扩展 Open-in-Tab 大屏体验。**187 个测试全部通过，零功能回退**。
+
+### 🖥 Feature A — 响应式布局 + 桌面模式切换
+
+- 三个断点：phone `< 640px`（底部 Tab bar）/ tablet `640–1023px`（200px 侧栏 + 主内容）/ desktop `≥ 1024px`。
+- Desktop 两种子模式（用户可选）：
+  - **三栏**（默认）：220px 侧栏 + 主内容 + 300px 右面板（宠物卡 / 今日统计 / 14 天打卡条）。
+  - **单列极简**：56px 图标栏（hover tooltip） + 主内容 `max-width: 720px` 居中。
+- 新增 `<aside class="ios-sidebar">` / `<aside class="ios-right-panel">` / `<nav class="ios-icon-rail">`。
+- CSS media query 驱动默认可见性；`body.desktop-mode-3pane` / `body.desktop-mode-centered` JS override。
+- 设置 UI：「我的 → 桌面显示」分段控件 `三栏 / 单列极简`，写入 `settings.desktopMode`，即时生效。
+- Tablet+ 隐藏 topbar 📅 / 👥 / 👤 快捷按钮（侧栏已覆盖）。
+- `lib/layout.js`：导出 `computeBreakpoint(width)` 和 `layoutVisibility(breakpoint, mode)` 纯函数。
+- `prefers-reduced-motion` 尊重：禁用 stagger 动画。
+
+### 📱 Feature B — PWA（Progressive Web App）
+
+- `manifest.webmanifest`：name / short_name / start_url / display:standalone / icons 128 + 256 + maskable。
+- `service-worker.js`：缓存 app shell（stale-while-revalidate）；API 网络优先；跨域 pass-through；版本化 `lsk-cache-v0.5.0`。
+- SW 注册仅在非 Chrome extension 上下文：`!('chrome' in window && chrome.runtime?.id)`。
+- `popup/popup.html` + `index.html` 引用 manifest + `<meta name="theme-color">` + Apple PWA meta。
+- **安装引导 UX**：
+  - 监听 `beforeinstallprompt` → topbar 显示「📲 安装 App」chip。
+  - iOS Safari 检测：首次访问弹出底部 sheet 引导添加到主屏幕（可 dismiss + localStorage 持久化）。
+- **离线指示器**：`navigator.onLine === false` → 显示「⚡ 离线模式」chip。
+- PWA 启动（`?pwa=1`）→ 自动 full-page 模式 + 隐藏 open-in-tab 按钮。
+
+### ⤢ Feature C — Chrome Extension Open-in-Tab
+
+- Topbar 新按钮 `#btn-open-tab`（⤢）：仅在扩展 popup 或非 full 模式下显示。
+- 点击 → `chrome.tabs.create({ url: popup.html?full=1 })` + 关闭 popup。
+- `?full=1` → `body.full-page` 类，适配桌面断点。
+- 设置 `defaultOpenIn`（popup / tab），「我的 → 启动方式」分段控件。
+- 若 `defaultOpenIn === 'tab'`，扩展 popup 打开时自动跳转到新标签页。
+
+### 🧪 Tests
+
+- `tests/layout.test.mjs`（新）：8 assertions（computeBreakpoint + layoutVisibility）。
+- `tests/pwa.test.mjs`（新）：11 assertions（manifest 键校验 + SW 文件存在 + 缓存版本）。
+- `tests/settings.test.mjs`（新）：6 assertions（desktopMode / defaultOpenIn 默认值 + 合并语义）。
+- 原有 162 测试全部通过，总计 187 green / 0 red。
+
+### 📦 Infra / Docs
+
+- `manifest.json` → 0.5.0，新增 `"tabs"` 权限 + `web_accessible_resources`。
+- `README.md`：新增「🌈 v0.5.0 · 多端形态」段 + 平台表格 + PWA 安装三步 + Desktop 模式说明。
+- `index.html`：v0.5.0 标识 + PWA install hint + feature grid 更新。
+- `CHANGELOG.md`：本条目。
+
+---
+
 ## v0.4.0 — iOS 原生风 UI 重构（MAJOR UI overhaul，零功能回退）（2026-07-16）
 
 🚀 **在线试玩**：https://c97743bfb5c2.aime-app.bytedance.net

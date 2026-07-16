@@ -1,0 +1,16 @@
+{
+  "name": "懒羊羊大王",
+  "short_name": "懒羊羊",
+  "description": "把执行力拆成一个个可打卡的小步骤",
+  "start_url": "./popup/popup.html?full=1&pwa=1",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F2F2F7",
+  "theme_color": "#007AFF",
+  "icons": [
+    {"src": "icons/icon-128.png", "sizes": "128x128", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-256.png", "sizes": "256x256", "type": "image/png", "purpose": "any"},
+    {"src": "icons/icon-256.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
