@@ -11,10 +11,36 @@ import { MODE } from '../lib/auth.js';
 import { PRIVACY, cyclePrivacy, newTeamCode, buildMyMemberSnapshot, mergeTeamState, makePoke } from '../lib/team.js';
 import { detectAvailableTier } from '../lib/ai_rerank.js';
 
-const APP_VERSION = '0.3.5';
+const APP_VERSION = '0.4.0';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const urlParams = new URLSearchParams(location.search);
+
+// ---------------------------------------------------------------------------
+// v0.4.0 · iOS 原生风：视图 ↔ Tab 映射 + 大标题动态切换
+// ---------------------------------------------------------------------------
+const VIEW_META = {
+  home:     { title: '懒羊羊大王', tab: 'home' },
+  input:    { title: '新任务',     tab: 'task' },
+  plan:     { title: '拆解结果',   tab: 'task' },
+  steps:    { title: '专注一步',   tab: 'task' },
+  done:     { title: '任务完成',   tab: 'task' },
+  pet:      { title: '宠物之家',   tab: 'pet'  },
+  calendar: { title: '打卡记录',   tab: 'calendar' },
+  team:     { title: '组队模式',   tab: 'my'   },
+  my:       { title: '我的',       tab: 'my'   },
+};
+
+function updateTopbarTitle(view) {
+  const el = $('#topbar-title');
+  if (!el) return;
+  el.textContent = VIEW_META[view]?.title || '懒羊羊大王';
+}
+function setActiveTab(tabName) {
+  $$('.ios-tabbar-item').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+}
 const MASCOT_LINES = ['简单到不能再简单啦，来嘛来嘛～', '完成这一小步，就能马上再偷懒一下下！', '就当帮懒羊羊一个忙好吗～', '这一步，闭着眼睛都能做完！', '3、2、1，开动啦！'];
 const PET_MILESTONES = [10, 50, 100, 500];
 const PRIVACY_LABELS = {
@@ -40,6 +66,12 @@ function showView(name) {
   currentView = name;
   resetDangerArming();
   $$('.view').forEach((el) => el.classList.toggle('hidden', el.dataset.view !== name));
+  updateTopbarTitle(name);
+  const tab = VIEW_META[name]?.tab;
+  if (tab) setActiveTab(tab);
+  // iOS 风格：切换视图时把主内容滚到顶部
+  const main = document.querySelector('.ios-main');
+  if (main) main.scrollTop = 0;
 }
 
 function escapeHtml(value) {
@@ -209,9 +241,95 @@ async function refreshUserBadge() {
 }
 
 async function showHome() {
+  showView('home');
+  await Promise.all([refreshResumeCard(), refreshUserBadge(), renderHomeDashboard()]);
+}
+
+async function showTaskInput() {
   showView('input');
-  await refreshResumeCard();
-  await refreshUserBadge();
+  await Promise.all([refreshResumeCard(), refreshUserBadge()]);
+}
+
+function todayDateKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function greetingForNow() {
+  const h = new Date().getHours();
+  if (h < 5) return '还没睡呀 🌙';
+  if (h < 11) return '早上好 👋';
+  if (h < 14) return '中午好 ☀️';
+  if (h < 18) return '下午好 🍃';
+  if (h < 22) return '晚上好 🌆';
+  return '夜深了 🌙';
+}
+
+async function renderHomeDashboard() {
+  const [stats, tasks, activeTask, teamSelf, petState] = await Promise.all([
+    Storage.getStats(),
+    Storage.getTasks(),
+    Storage.getActiveTask(),
+    Storage.getTeamSelf().catch(() => ({})),
+    Pets.getState().catch(() => null),
+  ]);
+  const today = stats.dailyLog?.[todayDateKey()] || { steps: 0, tasks: 0, food: 0 };
+  const greetEl = $('#home-greeting-sub');
+  const largeEl = document.querySelector('.view-home .ios-large-title');
+  if (largeEl) largeEl.textContent = greetingForNow();
+  if (greetEl) {
+    const openCount = tasks.filter((t) => Array.isArray(t.steps) && t.currentIndex < t.steps.length).length;
+    greetEl.textContent = openCount > 0 ? `你有 ${openCount} 个进行中的任务，加油！` : '看看今天要征服哪一件小事？';
+  }
+  const heroNum = $('#home-hero-num');
+  const heroSub = $('#home-hero-sub');
+  if (heroNum) heroNum.textContent = String(today.steps || 0);
+  if (heroSub) heroSub.textContent = `步骤 · 今日获得 ${today.food || 0} 养料`;
+  const stepsEl = $('#home-today-steps'); if (stepsEl) stepsEl.textContent = `${today.steps || 0} 步`;
+  const foodEl = $('#home-today-food'); if (foodEl) foodEl.textContent = String(today.food || 0);
+  // streak based on dailyLog
+  const dailyLog = stats.dailyLog || {};
+  let streak = 0;
+  const day = new Date();
+  for (let i = 0; i < 400; i += 1) {
+    const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+    const v = dailyLog[key];
+    if (v && v.steps > 0) { streak += 1; day.setDate(day.getDate() - 1); }
+    else { if (i === 0) { day.setDate(day.getDate() - 1); continue; } break; }
+  }
+  const streakEl = $('#home-streak'); if (streakEl) streakEl.textContent = `${streak} 天`;
+  const petSub = $('#home-pet-sub');
+  if (petSub) {
+    const affinity = petState?.totalFedByPet?.[petState?.activeId] || 0;
+    petSub.textContent = `Lv.${stats.petLevel || 1} · 亲密度 ${affinity}`;
+  }
+  const teamSubEl = $('#home-team-sub');
+  if (teamSubEl) teamSubEl.textContent = teamSelf?.teamCode ? `队伍 ${teamSelf.teamCode}` : '和伙伴一起';
+
+  // active task slot
+  const slot = $('#home-active-slot');
+  if (slot) {
+    if (activeTask && Array.isArray(activeTask.steps) && activeTask.currentIndex < activeTask.steps.length) {
+      const done = activeTask.steps.filter((s) => s.done).length;
+      const total = activeTask.steps.length;
+      const cur = activeTask.steps[activeTask.currentIndex] || {};
+      slot.innerHTML = `
+        <div class="active-task-card fade-in delay-1">
+          <div class="active-task-head">
+            <div class="active-task-title">${escapeHtml(activeTask.goal)}</div>
+            <span class="ios-chip tint-blue">进行中</span>
+          </div>
+          <div class="active-task-meta">已完成 ${done}/${total} 步 · 当前：${escapeHtml(cur.title || '—')}</div>
+          <div class="active-task-progress"><div class="active-task-progress-fill" style="width:${Math.round((done / total) * 100)}%"></div></div>
+          <button class="ios-btn ios-btn-primary block" id="home-continue-active">继续这个任务 →</button>
+        </div>
+      `;
+      const btn = $('#home-continue-active');
+      if (btn) btn.addEventListener('click', () => openTaskById(activeTask.id));
+    } else {
+      slot.innerHTML = '';
+    }
+  }
 }
 
 async function openTaskById(taskId) {
@@ -515,7 +633,7 @@ async function renderPet() {
     $('#pet-name').textContent = state.customName || '我的宠物';
     $('#pet-desc').textContent = state.cartoonize !== false ? '你上传的专属形象（已自动卡通化 ✨）' : '你上传的专属形象～ 一起加油！';
   } else if (state.activeId === 'sheep') {
-    avatar.innerHTML = '<img src="../icons/icon-256.png" alt="sheep" />';
+    avatar.innerHTML = '<img src="../icons/mascot.png" alt="sheep" />';
     $('#pet-name').textContent = type.name;
     $('#pet-desc').textContent = type.desc;
   } else {
@@ -531,6 +649,12 @@ async function renderPet() {
   $('#pet-stat-food').textContent = String(stats.foodStock);
   $('#pet-stat-fed').textContent = String(state.totalFedAll || state.timesFed || 0);
   renderPetHistory(state);
+  // v0.4.0 · milestones
+  const msBox = $('#pet-milestones');
+  if (msBox) {
+    const total = state.totalFedAll || 0;
+    msBox.innerHTML = PET_MILESTONES.map((m) => `<span class="pet-milestone ${total >= m ? 'reached' : ''}">${total >= m ? '✓ ' : ''}${m} 养料</span>`).join('');
+  }
 
   const picker = $('#pet-picker');
   picker.innerHTML = '';
@@ -541,7 +665,7 @@ async function renderPet() {
     const slot = document.createElement('div');
     slot.className = 'pet-slot' + (sameId(state.activeId, pet.id) ? ' active' : '') + (!unlocked ? ' locked' : '');
     let emojiCell = pet.emoji;
-    if (pet.id === 'sheep') emojiCell = '<img src="../icons/icon-48.png" alt="sheep">';
+    if (pet.id === 'sheep') emojiCell = '<img src="../icons/mascot.png" alt="sheep">';
     if (pet.id === 'custom' && state.customImageDataUrl) emojiCell = `<img src="${state.customImageDataUrl}" alt="custom">`;
     slot.innerHTML = `
       <div class="pet-slot-top">
@@ -1423,24 +1547,44 @@ const stimer = createCountdown({
   },
 });
 
-$('#btn-open-full').addEventListener('click', () => {
+$('#btn-open-full')?.addEventListener('click', () => {
   if (typeof chrome !== 'undefined' && chrome?.tabs) chrome.tabs.create({ url: chrome.runtime.getURL('popup/popup.html?full=1') });
   else window.open(location.pathname + '?full=1', '_blank');
 });
-$('#btn-options').addEventListener('click', openOptions);
-$('#btn-my').addEventListener('click', enterMyView);
-$('#btn-pet').addEventListener('click', enterPetView);
-$('#btn-calendar').addEventListener('click', enterCalendarView);
-$('#btn-team').addEventListener('click', enterTeamView);
-$('#footer-home').addEventListener('click', showHome);
-$('#btn-my-back').addEventListener('click', showHome);
-$('#btn-pet-back').addEventListener('click', showHome);
-$('#btn-cal-back').addEventListener('click', showHome);
-$('#btn-team-back').addEventListener('click', showHome);
-$('#btn-open-options-from-my').addEventListener('click', openOptions);
-$('#btn-goto-pet').addEventListener('click', enterPetView);
+$('#btn-options')?.addEventListener('click', openOptions);
+$('#btn-my')?.addEventListener('click', enterMyView);
+$('#btn-calendar')?.addEventListener('click', enterCalendarView);
+$('#btn-team')?.addEventListener('click', enterTeamView);
+$('#btn-topbar-brand')?.addEventListener('click', showHome);
+$('#btn-open-options-from-my')?.addEventListener('click', openOptions);
+$('#btn-goto-pet')?.addEventListener('click', enterPetView);
 
-$('#user-badge').addEventListener('click', async () => {
+// v0.4.0 · Tab bar routing
+$$('.ios-tabbar-item').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    if (tab === 'home') showHome();
+    else if (tab === 'task') showTaskInput();
+    else if (tab === 'pet') enterPetView();
+    else if (tab === 'calendar') enterCalendarView();
+    else if (tab === 'my') enterMyView();
+  });
+});
+
+// Home 快捷入口
+$$('[data-jump-tab]').forEach((el) => {
+  el.addEventListener('click', () => {
+    const tab = el.dataset.jumpTab;
+    if (tab === 'home') showHome();
+    else if (tab === 'task') showTaskInput();
+    else if (tab === 'pet') enterPetView();
+    else if (tab === 'calendar') enterCalendarView();
+    else if (tab === 'my') enterMyView();
+  });
+});
+$('#home-quick-team')?.addEventListener('click', enterTeamView);
+
+$('#user-badge')?.addEventListener('click', async () => {
   const profile = await ensureProfile();
   const ok = await copyText(profile.userId);
   flash(ok ? `已复制用户 ID：${shortUserId(profile.userId)}` : '复制失败，请手动长按复制');
@@ -1550,7 +1694,7 @@ $('#btn-rebreakdown').addEventListener('click', async () => {
   await doBreakdown(currentTask.goal);
 });
 
-$('#btn-back-input').addEventListener('click', showHome);
+$('#btn-back-input').addEventListener('click', showTaskInput);
 $('#btn-start').addEventListener('click', async () => {
   if (!currentTask) return;
   currentTask.currentIndex = 0;
@@ -1665,7 +1809,7 @@ $('#btn-back-tasks').addEventListener('click', async () => {
 });
 $('#btn-new-task').addEventListener('click', async () => {
   $('#task-input').value = '';
-  await showHome();
+  await showTaskInput();
 });
 
 $('#btn-feed').addEventListener('click', async () => {
@@ -1994,9 +2138,21 @@ $('#btn-account-lock').addEventListener('click', async () => {
   await ensureTeamSyncLoop();
   await syncTeamState({ force: true }).catch(() => {});
   await maybeToastUnreadPokes();
-  showView('input');
   const current = await Storage.getCurrentTask();
-  if (current && current.currentIndex < current.steps.length && urlParams.get('full') === '1') {
+  const startView = urlParams.get('view');
+  if (current && current.currentIndex < current.steps.length && urlParams.get('full') === '1' && !startView) {
     enterStepsView(current);
+  } else if (startView === 'pet') {
+    await enterPetView();
+  } else if (startView === 'calendar') {
+    await enterCalendarView();
+  } else if (startView === 'team') {
+    await enterTeamView();
+  } else if (startView === 'my') {
+    await enterMyView();
+  } else if (startView === 'task') {
+    await showTaskInput();
+  } else {
+    await showHome();
   }
 })();

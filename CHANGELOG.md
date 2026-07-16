@@ -1,5 +1,81 @@
 # CHANGELOG
 
+## v0.4.0 — iOS 原生风 UI 重构（MAJOR UI overhaul，零功能回退）（2026-07-16）
+
+🚀 **在线试玩**：https://c97743bfb5c2.aime-app.bytedance.net
+
+> 一次纯 UI 层的大重构：从 v0.3.x 的"暖奶油"配色升级到 iOS 原生视觉语言，采用 Apple 系统色、SF Pro + PingFang SC 字重层级、圆角分组卡片、毛玻璃底部 Tab Bar、`cubic-bezier(0.4,0,0.2,1)` 300ms 动效。**完整保留 v0.3.5 全部功能与存储结构，163 个单元测试 100% 通过**。
+
+### 🎨 设计语言 — 全部 tokens-driven（`popup/popup.css` 顶部 `:root`）
+
+- **调色板**：Blue `#007AFF` · Green `#34C759` · Orange `#FF9500` · Red `#FF3B30` · Purple `#AF52DE` · Teal `#5AC8FA` · Gray 1-6 阶梯。
+- **Surfaces**：`--surface-bg: #F2F2F7` · `--surface-card: #FFFFFF` · `--separator: rgba(60,60,67,0.08)`。
+- **Radius**：card 14px / row 10px / button 12px / chip 100px。
+- **Shadows**：card `0 1px 3px rgba(0,0,0,0.04)` · elev `0 8px 24px rgba(0,0,0,0.08)`。
+- **Typography**：`-apple-system, 'SF Pro Text', 'PingFang SC', ...`；大标题 32px 700 letter-spacing -0.5px。
+- **Motion**：`--ease-ios: cubic-bezier(0.4,0,0.2,1)`；视图切换 300ms；按下 `scale(0.97)` + `opacity 0.85`；stagger fadeIn 递增 0.06s。
+- **深色模式**：`@media (prefers-color-scheme: dark)` 一处覆盖，全站自动跟随系统。
+
+### 🧭 布局重构
+
+- **`<header class="ios-topbar">`**：sticky + `backdrop-filter: saturate(180%) blur(20px)`；左侧 32×32 圆角 mascot 头像（`icons/icon-32.png`，可点击返回首页）；中间大标题动态切换；右侧 📅 / 👥 / 👤 / ⛶ / ⚙ 圆形快捷键（32×32）。
+- **`<nav class="ios-tabbar">`**：底部 5-tab 毛玻璃导航 🏠 首页 / 📋 任务 / 🐑 宠物 / 📅 打卡 / 👤 我的；`position: sticky`，顶部 1px separator。
+- **`<main class="ios-main">`**：每个视图使用 `data-view`；`.view` 使用 iOS push-in 动画（translateX 12→0 + fadeIn 320ms）。
+
+### 🏠 全新 Home 视图（landing dashboard）
+
+- 动态问候语（早/中/下午/晚上）+ 副标题根据"进行中任务数"变化。
+- Hero 蓝渐变卡：今日完成步数大字 + 养料副标。
+- 进行中任务卡片：目标 / 已完成/总步骤 / 当前步骤 / 进度条 + "继续这个任务 →" 主按钮，可一键跳到 steps view。
+- 4 格快捷 tile：新任务 / 宠物之家 / 打卡记录 / 组队。
+- "今日统计" 分组列表：完成步骤 · 获得养料 · 连续打卡 · 宠物等级（带 chevron 可跳）。
+
+### 📋 各视图 iOS 化
+
+- **任务输入**：`.chips-grid` 2×2 pastel tinted tile 快捷示例；带 inset shadow 的 pill 输入框；`.ios-btn-primary big block` 主 CTA。
+- **拆解结果**：目标行 `.goal-line` + `.plan-meta` 药丸标签；`.plan-list > .plan-item` 卡片化可编辑；plan-actions & plan-cta 分两行。
+- **专注一步**：`.step-card` 22px 700 大标题 + 圆蓝 tag + 详情；step-list 使用 iOS 待办清单圆圈（22px），当前项蓝色 halo `box-shadow: 0 0 0 3px rgba(0,122,255,0.12)`，完成态实心绿 + ✓ + 灰色删除线。stimer-card 支持 phase → 主色微渐变。
+- **宠物之家**：hero 96×96 mascot `filter: drop-shadow`，`feed-pop` 动画重做为 iOS-y 弹性；`.pet-milestones` 4 枚 pill 状勋章，达标绿高亮；亲密度条渐变（tier: low/mid/high/max）。喂养历史 `<details>` 折叠。
+- **打卡日历**：cal-stat 4 格圆角卡；30 / 90 天切换用 iOS segmented control (`.cal-range-switch`)；热力格 12×12 border-radius 3，颜色矩阵 `#EBEDF0 → #0E9F52`。
+- **组队**：team-code 单色系 chip 可点复制；member card 分栏；隐私 chip 3 色（blue/purple/orange）；poke 卡带 amber 左边框条；同步 URL box + 立即同步。
+- **我的**：48×48 圆头像 + verified 徽章 + mode-chip（`mode-guest` / `mode-passphrase` / `mode-github`）；grouped `.my-card` 分组；备份区 2×2 iOS action grid。
+- **登录弹窗**：从底部 slide-up sheet，顶部 36×5 drag handle + 圆角 18px；`.modal-tabs` iOS segmented control；输入框 focus 蓝色 halo。
+
+### 💫 动效系统
+
+- 视图进入：`translateX(12px) → 0` + `opacity 0 → 1` 320ms ease-ios。
+- 元素 stagger：`.fade-in.delay-1/2/3/4` 递增 0.06s。
+- 按下反馈：全局 `.ios-btn:active { transform: scale(0.97); opacity: 0.85 }`。
+- 步骤卡进入：`iosStepIn` 400ms translateX + 微 scale 0.98 → 1。
+- Toast：从底部 tabbar 上方 24px 滑入，capsule shape、subtle shadow，2.4s 自动消失。
+
+### 🛡 兼容 & 保留
+
+- **APP_VERSION** `0.3.5 → 0.4.0`；`manifest.json version` `0.4.0`。
+- 所有 popup.js 里的 DOM ID **保持原样**（`task-input` / `plan-list` / `steps-list` / `pet-avatar` / `cal-heatmap` / `team-root` / `account-card` / `sign-in-modal` 等）→ 保证 `lib/` 各模块 & 单元测试完全兼容。
+- 保留全部 `.chip` / `.btn` / `.btn.primary` / `.btn.ghost` / `.tasks-item` / `.plan-item` 等旧 class 的兜底样式，避免 popup.js 里的动态注入 HTML 失去样式。
+- **Icon 资产未替换**：topbar `../icons/icon-32.png`、pet hero `../icons/mascot.png`、done view `../icons/icon-256.png`、favicon 都指向已有懒羊羊 logo。
+- 全局无 `emoji-only` 替换，SVG / img 优先。
+
+### ✅ 测试
+
+- `node --test tests/*.mjs`：**163 passed, 0 failed**（storage / breakdown / calendar / pets / step_timer / auth / team / ai_rerank / breakdown_local / tasks 全部通过）。
+- `node --check popup/popup.js`：语法通过。
+- `html_vision`：Home / Pet / Calendar / Team / My 五视图逐一 render 校验，mascot 加载 OK，tabbar 可见，无 console error。
+
+### 📝 文件改动一览
+
+- `popup/popup.css`：完全重写为 tokens-driven CSS（≈900 行）。
+- `popup/popup.html`：`<header class="ios-topbar">` + `<main class="ios-main">` + `<nav class="ios-tabbar">` 三段式；新增 `view-home` 首页视图。
+- `popup/popup.js`：新增 `VIEW_META` / `updateTopbarTitle` / `setActiveTab` / `renderHomeDashboard` / `showTaskInput`；tabbar routing；`showHome` 改为 landing dashboard；APP_VERSION 升到 0.4.0；wire pet mascot & milestones。
+- `options/options.css`：iOS tokens 同步；`options/options.html` lead 文案与 footer 版本号更新到 v0.4.0。
+- `index.html`：完全重写为 iOS 风演示页 + 设计规范 tokens 展示。
+- `manifest.json`：version 0.4.0。
+- `README.md`：新增 "🎨 v0.4.0 — iOS 原生风 UI 重构" 章节 + 折叠设计规范。
+- `CHANGELOG.md`：本条。
+
+---
+
 ## v0.3.5 — 认证账号系统（三种免费模式，零付费依赖）（2026-07-15）
 
 🚀 **在线试玩**：https://1e8add08b5ba.aime-app.bytedance.net

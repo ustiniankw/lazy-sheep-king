@@ -1,14 +1,61 @@
 # 懒羊羊大王 · 执行力浏览器插件 🐑👑
 
-> **让懒虫也能一步一步搞定事情** —— 你输入一件想做的事，懒羊羊大王先用本地模板拆成“傻瓜到不能再傻瓜”的小步骤，再按可用性尝试用免费 AI 精修；完成过程中还能养宠物、看打卡日历、和队友互相拍一拍。
+> **让懒虫也能一步一步搞定事情** —— 你输入一件想做的事，懒羊羊大王先用本地模板拆成"傻瓜到不能再傻瓜"的小步骤，再按可用性尝试用免费 AI 精修；完成过程中还能养宠物、看打卡日历、和队友互相拍一拍。
 
-🚀 **[👉 在线试玩 v0.3.5](https://1e8add08b5ba.aime-app.bytedance.net)** —— 不用装扩展也能直接玩。
+🚀 **[👉 在线试玩 v0.4.0](https://c97743bfb5c2.aime-app.bytedance.net)** —— 不用装扩展也能直接玩。全新 iOS 原生风 UI 首秀 🍎
 
 ![banner](./icons/mascot.png)
 
+## 🎨 v0.4.0 — iOS 原生风 UI 重构
+
+v0.4.0 是一次 **完全的 UI 层重构**，把 v0.3.x 的暖奶油配色升级为 iOS 原生视觉语言，同时 **完整保留** 全部功能（163 个测试全部通过）：
+
+- 🍎 **iOS 原生视觉语言**：圆角分组卡片、SF Pro Text + PingFang SC 中文回退、系统蓝 `#007AFF` 主色、`#F2F2F7` 页面底色。
+- 📱 **底部 Tab Bar 导航**：🏠 首页 · 📋 任务 · 🐑 宠物 · 📅 打卡 · 👤 我的，毛玻璃 `backdrop-filter: blur(20px)`。
+- 🏠 **全新首页 Dashboard**：动态问候语 + 今日 hero 数字卡 + 进行中任务卡片 + 4 格快捷入口 + 今日统计分组列表。
+- 🎯 **步骤圆圈化**：iOS 待办清单圆圈 check，当前项蓝色 halo `box-shadow: 0 0 0 3px rgba(0,122,255,0.12)`，完成态绿色描边。
+- 🌙 **深色模式自适应**：`@media (prefers-color-scheme: dark)` 一处切换全站 tokens。
+- 💫 **细腻动效**：`cubic-bezier(0.4,0,0.2,1)` 300ms + stagger fadeIn 递增 0.06s 延迟 + 按下反馈 `scale(0.97)`。
+- 🐑 **保留懒羊羊真身资产**：`icons/icon-32.png` 作 topbar 头像、`icons/mascot.png` 作宠物 96×96 hero，不替换为 emoji。
+
+<details>
+<summary>🎨 设计规范（Design Tokens）</summary>
+
+全部 tokens 位于 `popup/popup.css` 顶部 `:root`，options 与 index 共享：
+
+**调色板**
+- Blue `#007AFF` · Green `#34C759` · Orange `#FF9500` · Red `#FF3B30` · Purple `#AF52DE` · Teal `#5AC8FA`
+- Grays: `#8E8E93` / `#AEAEB2` / `#C7C7CC` / `#D1D1D6` / `#E5E5EA` / `#F2F2F7`
+
+**Surfaces**
+- Page bg: `--ios-gray6` · Card: `#FFFFFF` · Separator: `rgba(60,60,67,0.08)`
+
+**Radius**
+- Card 14px · Row 10px · Button 12px · Chip / pill 100px
+
+**Shadows**
+- Card `0 1px 3px rgba(0,0,0,0.04)` · Elevated `0 8px 24px rgba(0,0,0,0.08)`
+
+**Typography**
+- Stack: `-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif`
+- 大标题 32px 700 letter-spacing -0.5px
+- Row title 15px 500 · Row subtitle 12px
+
+**Motion**
+- Ease: `cubic-bezier(0.4, 0, 0.2, 1)` · 视图切换 300ms · 按下 100ms scale 0.97 + opacity 0.85
+- 元素进入 stagger fadeIn（0.06 / 0.12 / 0.18 / 0.24s 递增延迟）
+
+**Layout patterns**
+- 分组卡片：`.ios-section > .ios-section-header + .ios-group > .ios-row × N`
+- Row 内部 padding 13px 16px，`border-bottom: 1px solid var(--separator)`，`:last-child { border-bottom: none; }`
+- 按钮：`.ios-btn-primary` / `.ios-btn-secondary` / `.ios-btn-ghost` / `.ios-btn-destructive`
+- 状态芯片：`.ios-chip` 药丸 100px 圆角
+
+</details>
+
 ## ✨ 特性
 
-- **一键拆解**：把大任务拆成 4-8 步“最小可执行动作”，每步都尽量具体到能立刻开动。
+- **一键拆解**：把大任务拆成 4-8 步"最小可执行动作"，每步都尽量具体到能立刻开动。
 - **🔐 认证账号系统（v0.3.5）**：访客 / 本地密码账号 / GitHub 登录三种模式，**全部免费**、优雅降级；匿名 userId 可平滑升级为真实账号，多设备找回进度。
 - **🍃 AI 精修（免费方案）**：先本地拆解，再按可用性自动走 **Chrome 内置 Prompt API → 用户自配 API → 本地兜底**。
 - **👥 组队模式（v0.3.4）**：创建 / 加入 6 位团队码，查看队友昵称、设备、今日步数、当前任务、连续打卡和最近活跃；GitHub 队友带 🐙 徽章。
