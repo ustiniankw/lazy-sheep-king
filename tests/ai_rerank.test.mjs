@@ -210,6 +210,61 @@ await t('userApiCaller 可拿到 subject / intent / prompt', async () => {
   ok(captured.userPrompt.includes('write.report'), 'prompt 应包含 intent');
 });
 
+console.log('v0.5.1 · tier 重排：用户 API 优先于 Chrome AI');
+
+await t('同时可用时 detectAvailableTier 返回 user-api（用户配置优先）', async () => {
+  resetGlobals();
+  globalThis.LanguageModel = { create: async () => ({ prompt: async () => '{}', destroy: async () => {} }) };
+  const tier = await detectAvailableTier({ llm: { enabled: true, apiKey: 'k', baseUrl: 'https://x.y' } });
+  eq(tier, 'user-api');
+});
+
+await t('只有 Chrome AI 时仍返回 chrome-ai', async () => {
+  resetGlobals();
+  globalThis.LanguageModel = { create: async () => ({ prompt: async () => '{}', destroy: async () => {} }) };
+  eq(await detectAvailableTier({}), 'chrome-ai');
+});
+
+await t('用户已配置 API 时 rerank 走 user-api 而非 chrome-ai', async () => {
+  resetGlobals();
+  // Chrome AI 也在，但用户配置了 API → 应优先走 user-api
+  globalThis.LanguageModel = {
+    create: async () => ({ prompt: async () => JSON.stringify({ steps: [
+      { title: 'CHROME-1', estMinutes: 2, tips: 'a' },
+      { title: 'CHROME-2', estMinutes: 2, tips: 'b' },
+      { title: 'CHROME-3', estMinutes: 2, tips: 'c' },
+      { title: 'CHROME-4', estMinutes: 2, tips: 'd' },
+    ] }), destroy: async () => {} }),
+  };
+  let usedUserApi = false;
+  const result = await rerankSteps(
+    { subject: '写周报', steps: draftSteps, hints: {}, intent: 'write.report' },
+    {
+      settings: { llm: { enabled: true, apiKey: 'k', baseUrl: 'https://x.y', model: 'demo' } },
+      userApiCaller: async () => {
+        usedUserApi = true;
+        return JSON.stringify({ steps: [
+          { title: 'USER-1', estMinutes: 2, tips: 'a' },
+          { title: 'USER-2', estMinutes: 2, tips: 'b' },
+          { title: 'USER-3', estMinutes: 2, tips: 'c' },
+          { title: 'USER-4', estMinutes: 2, tips: 'd' },
+        ] });
+      },
+    },
+  );
+  eq(result.source, 'user-api');
+  ok(usedUserApi, '应调用 userApiCaller');
+  eq(result.steps[0].title, 'USER-1');
+});
+
+await t('chromePromptApiAvailable 反映 Chrome Prompt API 存在性', async () => {
+  const { chromePromptApiAvailable } = await import('../lib/ai_rerank.js');
+  resetGlobals();
+  eq(chromePromptApiAvailable(), false);
+  globalThis.LanguageModel = { create: async () => ({ prompt: async () => '{}' }) };
+  eq(chromePromptApiAvailable(), true);
+});
+
 resetGlobals();
 globalThis.LanguageModel = originalLanguageModel;
 globalThis.chrome = originalChrome;

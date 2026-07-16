@@ -1,7 +1,8 @@
 // options.js — v0.3.4: 免费 AI 精修 + 用户 API 降级配置
 import { Storage } from '../lib/storage.js';
-import { PROVIDERS, findProvider } from '../lib/providers.js';
+import { PROVIDERS, findProvider, getWizardProviders } from '../lib/providers.js';
 import { detectAvailableTier } from '../lib/ai_rerank.js';
+import { chatComplete } from '../lib/llm_client.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -63,11 +64,88 @@ async function renderChromeAiStatus() {
   pill.className = 'status-pill ' + (ok ? 'ok' : 'warn');
 }
 
+// v0.5.1 · FIX 4：免费 AI 一键接入向导
+function escapeHtml(v) {
+  return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function renderFreeAiWizard() {
+  const host = $('#free-ai-wizard');
+  if (!host) return;
+  host.innerHTML = '';
+  getWizardProviders().forEach((p) => {
+    const card = document.createElement('div');
+    card.className = 'wizard-card';
+    const steps = (p.wizardSteps || []).map((s) => `<li>${escapeHtml(s)}</li>`).join('');
+    card.innerHTML = `
+      <div class="wizard-card-head">
+        <span class="wizard-card-title">${escapeHtml(p.name)}</span>
+        <span class="wizard-free-tag">免费</span>
+      </div>
+      <div class="wizard-note">${escapeHtml(p.freeNote || '')}</div>
+      <ol class="wizard-steps">${steps}</ol>
+      <a class="wizard-getkey-link" href="${escapeHtml(p.docsUrl || '#')}" target="_blank" rel="noopener">👉 去拿 ${escapeHtml(p.name)} 的 key</a>
+      <div class="wizard-form">
+        <input type="password" class="wizard-key-input" placeholder="${escapeHtml(p.keyHint || '把 key 填在这里')}" data-provider="${p.id}" />
+        <button class="btn ghost wizard-save-btn" data-provider="${p.id}">保存并测试</button>
+      </div>
+      <div class="wizard-probe-result" data-provider="${p.id}"></div>
+    `;
+    host.appendChild(card);
+  });
+  host.querySelectorAll('.wizard-save-btn').forEach((btn) => {
+    btn.addEventListener('click', () => saveAndProbeProvider(btn.dataset.provider));
+  });
+}
+
+async function saveAndProbeProvider(providerId) {
+  const provider = findProvider(providerId);
+  const input = document.querySelector(`.wizard-key-input[data-provider="${providerId}"]`);
+  const resultEl = document.querySelector(`.wizard-probe-result[data-provider="${providerId}"]`);
+  const btn = document.querySelector(`.wizard-save-btn[data-provider="${providerId}"]`);
+  const apiKey = (input?.value || '').trim();
+  if (!apiKey) {
+    resultEl.className = 'wizard-probe-result err';
+    resultEl.textContent = '请先粘贴 API key';
+    return;
+  }
+  btn.disabled = true;
+  resultEl.className = 'wizard-probe-result';
+  resultEl.textContent = '正在保存并发探针请求…';
+  const s = await Storage.getSettings().catch(() => ({}));
+  const llm = { ...(s.llm || {}), enabled: true, providerId, baseUrl: provider.baseUrl, apiKey, model: provider.defaultModel };
+  await Storage.setSettings({ aiRerankEnabled: true, llm });
+  try {
+    const res = await chatComplete({
+      baseUrl: provider.baseUrl,
+      apiKey,
+      model: provider.defaultModel,
+      messages: [{ role: 'user', content: 'hello, respond with the word ready' }],
+      temperature: 0,
+      timeoutMs: 8000,
+    });
+    const content = (res?.content || '').trim();
+    resultEl.className = 'wizard-probe-result ok';
+    resultEl.textContent = `✓ 连接成功（${res.elapsedMs || '?'}ms）：${content.slice(0, 40) || 'ready'}`;
+    // 同步表单，方便用户在下方微调
+    applyProvider(providerId, { userClicked: true });
+    $('#llm-apiKey').value = apiKey;
+    $('#llm-enabled').checked = true;
+    $('#ai-rerank-enabled').checked = true;
+  } catch (error) {
+    resultEl.className = 'wizard-probe-result err';
+    resultEl.textContent = `✗ 测试失败：${(error?.message || String(error)).slice(0, 180)}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function load() {
   const s = await Storage.getSettings();
   currentProviderId = s.llm?.providerId || 'openai';
   renderProviders(currentProviderId);
   applyProvider(currentProviderId);
+  renderFreeAiWizard();
   await renderChromeAiStatus();
 
   $('#ai-rerank-enabled').checked = s.aiRerankEnabled !== false;

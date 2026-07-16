@@ -75,6 +75,49 @@ for (const [input, expectedIntent] of classifyCases) {
   });
 }
 
+// v0.5.1 · 新增 8-10 个意图分类
+const newIntentCases = [
+  ['帮我报个税', 'life.finance.tax'],
+  ['汇算清缴退税', 'life.finance.tax'],
+  ['陪女儿写作业', 'life.parenting'],
+  ['辅导孩子作业', 'life.parenting'],
+  ['给妈妈挑个生日礼物', 'life.gift'],
+  ['准备伴手礼', 'life.gift'],
+  ['预约体检', 'life.medical'],
+  ['挂号看医生', 'life.medical'],
+  ['去换驾照', 'life.legal'],
+  ['办理身份证', 'life.legal'],
+  ['装修客厅', 'life.housing'],
+  ['找租客出租房子', 'life.housing'],
+  ['联系老同学', 'life.relationship'],
+  ['约朋友聚会', 'life.relationship'],
+  ['学吉他', 'life.hobby.instrument'],
+  ['练琴弹钢琴', 'life.hobby.instrument'],
+  ['整理相册', 'life.hobby.craft'],
+  ['打理花园种花', 'life.hobby.craft'],
+  ['面完试跟进 hr', 'career.job_search.followup'],
+  ['写封感谢信给对方', 'career.job_search.followup'],
+];
+
+for (const [input, expectedIntent] of newIntentCases) {
+  await t(`新意图分类：${input} -> ${expectedIntent}`, async () => {
+    eq(analyzeInput(input).intent, expectedIntent);
+  });
+}
+
+console.log('new intents 本地模板结构');
+
+for (const [input] of newIntentCases) {
+  await t(`新意图步骤合理：${input}`, async () => {
+    const result = await localBreakdown(input);
+    ok(result.steps.length >= 4 && result.steps.length <= 8, 'steps 数量应在 4-8');
+    result.steps.forEach((stepItem, index) => {
+      ok(!!stepItem.title, `step[${index}] title 不能为空`);
+      ok(stepItem.estMinutes >= 1 && stepItem.estMinutes <= 60, `step[${index}] estMinutes 应合理`);
+    });
+  });
+}
+
 console.log('localBreakdown output');
 
 for (const input of [

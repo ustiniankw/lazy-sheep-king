@@ -1,6 +1,6 @@
 // popup.js — v0.5.0: 响应式 + PWA + Open-in-Tab
 import { Storage } from '../lib/storage.js';
-import { breakdownTask, refineStep, rememberBreakdown } from '../lib/breakdown.js';
+import { breakdownTask, refineStep, rememberBreakdown, localBreakdown } from '../lib/breakdown.js';
 import { celebrateStep, celebrateAll } from '../lib/celebrate.js';
 import { createCountdown, fmt as fmtTimer, calcStepReward, calcTaskCompletionBonus } from '../lib/step_timer.js';
 import { Pets, PET_TYPES, MOOD_META, computeMood, affinityProgress, todayFeedTotal } from '../lib/pets.js';
@@ -9,10 +9,12 @@ import { ensureProfile, setDisplayName, regenerateUserId } from '../lib/user.js'
 import * as Auth from '../lib/auth.js';
 import { MODE } from '../lib/auth.js';
 import { PRIVACY, cyclePrivacy, newTeamCode, buildMyMemberSnapshot, mergeTeamState, makePoke } from '../lib/team.js';
-import { detectAvailableTier } from '../lib/ai_rerank.js';
+import { detectAvailableTier, chromePromptApiAvailable } from '../lib/ai_rerank.js';
+import { getWizardProviders, findProvider } from '../lib/providers.js';
+import { chatComplete } from '../lib/llm_client.js';
 import { computeBreakpoint } from '../lib/layout.js';
 
-const APP_VERSION = '0.5.0';
+const APP_VERSION = '0.5.1';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const urlParams = new URLSearchParams(location.search);
@@ -228,9 +230,9 @@ async function refreshLLMHint() {
   const tier = await detectAvailableTier(settings);
   const enabled = settings.aiRerankEnabled !== false;
   const tierText = tier === 'chrome-ai'
-    ? 'Chrome 内置 AI 可用'
+    ? 'Chrome AI（实验性）可用'
     : tier === 'user-api'
-      ? `将回退到你的 ${escapeHtml(settings.llm?.providerId || 'API')} 配置`
+      ? `使用你的 ${escapeHtml(settings.llm?.providerId || 'API')} 配置`
       : '当前仅使用本地兜底';
   hint.classList.toggle('ok', enabled && tier !== 'none');
   if (enabled) {
@@ -419,32 +421,66 @@ async function refreshResumeCard() {
   });
 }
 
+// FIX 6：CTA 兜底——超过 8s 无响应就用本地结果，绝不让按钮永久转圈。
+const CTA_MAX_WAIT_MS = 8000;
+function ctaTimeout(ms) {
+  return new Promise((resolve) => setTimeout(() => resolve({ __ctaTimeout: true }), ms));
+}
+function toggleBreakdownSkeleton(show) {
+  const skeleton = $('#breakdown-skeleton');
+  if (skeleton) skeleton.classList.toggle('hidden', !show);
+}
+function taskFromResult(goal, result, settings) {
+  return {
+    id: `task_${Date.now()}_${Math.random().toString(16).slice(2, 6)}`,
+    goal,
+    steps: (result.steps || []).map((stepItem) => ({ ...stepItem, done: false, skipped: false })),
+    currentIndex: 0,
+    createdAt: Date.now(),
+    source: result.source,
+    privacy: settings?.team?.defaultPrivacy || PRIVACY.PUBLIC,
+    meta: result.meta || null,
+    warning: result.warning || null,
+  };
+}
+
 async function doBreakdown(goal) {
   const btn = $('#btn-breakdown');
   const prevHtml = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<span class="btn-emoji">🍃</span>懒羊羊正在拆解中…';
+  btn.innerHTML = '<span class="btn-emoji">🍃</span>拆解中…';
+  toggleBreakdownSkeleton(true);
+  let settings = {};
   try {
-    const settings = await Storage.getSettings();
-    const result = await breakdownTask(goal, settings);
-    const task = {
-      id: `task_${Date.now()}_${Math.random().toString(16).slice(2, 6)}`,
-      goal,
-      steps: result.steps.map((stepItem) => ({ ...stepItem, done: false, skipped: false })),
-      currentIndex: 0,
-      createdAt: Date.now(),
-      source: result.source,
-      privacy: settings?.team?.defaultPrivacy || PRIVACY.PUBLIC,
-      meta: result.meta || null,
-      warning: result.warning || null,
-    };
+    settings = await Storage.getSettings().catch(() => ({}));
+    // 主管线：breakdownTask 内部已含 6s AI 超时与本地兜底；此处再套 8s CTA 兜底。
+    let result = await Promise.race([
+      breakdownTask(goal, settings),
+      ctaTimeout(CTA_MAX_WAIT_MS),
+    ]);
+    if (result && result.__ctaTimeout) {
+      // 极端情况下主管线仍未返回：立即出本地结果，绝不卡住。
+      result = await localBreakdown(goal);
+      flash('AI 精修超时，已使用本地拆解结果', { big: true });
+    }
+    const task = taskFromResult(goal, result, settings);
     await Storage.setCurrentTask(task);
     enterPlanView(task);
   } catch (error) {
-    flash(`拆解失败：${error.message || error}`);
+    // 兜底的兜底：仍然给出通用模板，绝不把异常暴露成"卡住"。
+    try {
+      const fallback = await localBreakdown(goal);
+      const task = taskFromResult(goal, { ...fallback, warning: error?.message || String(error) }, settings);
+      await Storage.setCurrentTask(task);
+      enterPlanView(task);
+      flash('拆解遇到异常，已使用通用模板 · 详情见诊断', { big: true });
+    } catch (fatal) {
+      flash(`拆解失败：${fatal.message || fatal}`);
+    }
   } finally {
     btn.disabled = false;
     btn.innerHTML = prevHtml;
+    toggleBreakdownSkeleton(false);
   }
 }
 
@@ -1440,6 +1476,128 @@ async function signOutFlow() {
   await refreshUserBadge();
 }
 
+// ---------------------------------------------------------------------------
+// v0.5.1 · FIX 4：免费 AI 一键向导 + FIX 5：拆解诊断面板
+// ---------------------------------------------------------------------------
+let wizardRendered = false;
+
+function renderFreeAiWizard() {
+  const host = $('#free-ai-wizard');
+  if (!host || wizardRendered) return;
+  const providers = getWizardProviders();
+  host.innerHTML = '';
+  providers.forEach((p) => {
+    const card = document.createElement('div');
+    card.className = 'wizard-card';
+    card.dataset.provider = p.id;
+    const steps = (p.wizardSteps || []).map((s) => `<li>${escapeHtml(s)}</li>`).join('');
+    card.innerHTML = `
+      <div class="wizard-card-head">
+        <span class="wizard-card-title">${escapeHtml(p.name)}</span>
+        <span class="wizard-free-tag">免费</span>
+      </div>
+      <div class="my-card-sub">${escapeHtml(p.freeNote || '')}</div>
+      <ol class="wizard-steps">${steps}</ol>
+      <a class="wizard-getkey-link" href="${escapeHtml(p.docsUrl || '#')}" target="_blank" rel="noopener">👉 去拿 ${escapeHtml(p.name)} 的 key</a>
+      <div class="wizard-form">
+        <input type="password" class="wizard-key-input" placeholder="${escapeHtml(p.keyHint || '把 key 填在这里')}" data-provider="${p.id}" />
+        <button class="ios-btn small ios-btn-primary wizard-save-btn" data-provider="${p.id}">保存并测试</button>
+      </div>
+      <div class="wizard-probe-result" data-provider="${p.id}"></div>
+    `;
+    host.appendChild(card);
+  });
+  host.querySelectorAll('.wizard-save-btn').forEach((btn) => {
+    btn.addEventListener('click', () => saveAndProbeProvider(btn.dataset.provider));
+  });
+  wizardRendered = true;
+}
+
+async function saveAndProbeProvider(providerId) {
+  const provider = findProvider(providerId);
+  const input = $(`.wizard-key-input[data-provider="${providerId}"]`);
+  const resultEl = $(`.wizard-probe-result[data-provider="${providerId}"]`);
+  const btn = $(`.wizard-save-btn[data-provider="${providerId}"]`);
+  const apiKey = (input?.value || '').trim();
+  if (!apiKey) {
+    resultEl.className = 'wizard-probe-result err';
+    resultEl.textContent = '请先粘贴 API key';
+    return;
+  }
+  btn.disabled = true;
+  resultEl.className = 'wizard-probe-result';
+  resultEl.textContent = '正在保存并发探针请求…';
+  // 先保存配置：启用 AI 精修 + 用户 API 优先
+  const settings = await Storage.getSettings().catch(() => ({}));
+  const llm = {
+    ...(settings.llm || {}),
+    enabled: true,
+    providerId,
+    baseUrl: provider.baseUrl,
+    apiKey,
+    model: provider.defaultModel,
+  };
+  await Storage.setSettings({ aiRerankEnabled: true, llm });
+  try {
+    const res = await chatComplete({
+      baseUrl: provider.baseUrl,
+      apiKey,
+      model: provider.defaultModel,
+      messages: [{ role: 'user', content: 'hello, respond with the word ready' }],
+      temperature: 0,
+      timeoutMs: 8000,
+    });
+    const content = (res?.content || '').trim();
+    resultEl.className = 'wizard-probe-result ok';
+    resultEl.textContent = `✓ 连接成功（${res.elapsedMs || '?'}ms）：${content.slice(0, 40) || 'ready'}`;
+    flash('免费 AI 已接入并测试通过 🎉', { big: true });
+    await renderMyView();
+  } catch (error) {
+    resultEl.className = 'wizard-probe-result err';
+    resultEl.textContent = `✗ 测试失败：${(error?.message || String(error)).slice(0, 160)}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function renderDiagPanel(settings) {
+  $('#diag-chrome-ai').textContent = chromePromptApiAvailable() ? '可用' : '不可用';
+  $('#diag-ai-enabled').textContent = settings?.aiRerankEnabled === false ? '已关闭' : '已启用';
+  const llm = settings?.llm || {};
+  $('#diag-provider').textContent = (llm.enabled && llm.providerId) ? llm.providerId : '未配置';
+  $('#diag-model').textContent = llm.model || '—';
+  $('#diag-base').textContent = llm.baseUrl || '—';
+  const log = await Storage.getDebugLog().catch(() => []);
+  const list = $('#diag-log-list');
+  list.innerHTML = '';
+  const recent = log.slice(-5).reverse();
+  if (!recent.length) {
+    const li = document.createElement('li');
+    li.className = 'diag-log-item';
+    li.textContent = '暂无拆解记录，拆一个任务后再来看看。';
+    list.appendChild(li);
+  } else {
+    recent.forEach((entry) => {
+      const li = document.createElement('li');
+      li.className = 'diag-log-item';
+      const dot = entry.ok ? '<span class="ok-dot">●</span>' : '<span class="err-dot">●</span>';
+      const t = new Date(entry.ts || Date.now()).toLocaleTimeString('zh-CN', { hour12: false });
+      li.innerHTML = `${dot} ${escapeHtml(t)} · ${escapeHtml(String(entry.input || '').slice(0, 20))} · ${escapeHtml(entry.intent || '?')} · ${escapeHtml(entry.source || '?')} · ${escapeHtml(String(entry.tier || '?'))} · ${entry.latency || 0}ms${entry.error ? ' · ' + escapeHtml(String(entry.error).slice(0, 40)) : ''}`;
+      list.appendChild(li);
+    });
+  }
+}
+
+async function updateAiNudge(settings, tier) {
+  const nudge = $('#ai-nudge');
+  if (!nudge) return;
+  const hasUserApi = !!(settings?.llm?.enabled && settings?.llm?.apiKey);
+  const aiOff = settings?.aiRerankEnabled === false;
+  // 只有在完全没有可用 AI（未配置用户 API 且非 chrome-ai）时才提示
+  const showNudge = !hasUserApi && tier !== 'chrome-ai' && !aiOff;
+  nudge.classList.toggle('hidden', !showNudge);
+}
+
 async function renderMyView() {
   const profile = await ensureProfile();
   const syncEnabled = await Storage.getSyncEnabled();
@@ -1453,11 +1611,11 @@ async function renderMyView() {
   $('#my-ai-rerank-enabled').checked = settings.aiRerankEnabled !== false;
   $('#ai-status-text').innerHTML = settings.aiRerankEnabled === false
     ? '已关闭 AI 精修，当前只使用本地兜底。'
-    : tier === 'chrome-ai'
-      ? 'Chrome 内置 AI：<b>可用</b>，优先本地推理，不上传任务内容。'
-      : tier === 'user-api'
-        ? `Chrome 内置 AI 暂不可用，将回退到你配置的 <b>${escapeHtml(settings.llm?.providerId || 'API')}</b>。`
-        : 'Chrome 内置 AI：<b>不可用</b>（Chrome 138+ / flag / Origin Trial）；未配置用户 API 时会直接回退本地兜底。';
+    : tier === 'user-api'
+      ? `优先使用你配置的 <b>${escapeHtml(settings.llm?.providerId || 'API')}</b> 做精修（推荐）。`
+      : tier === 'chrome-ai'
+        ? 'Chrome AI（实验性）：<b>可用</b>，本地推理不上传任务内容；建议同时接入免费 API 更稳定。'
+        : '暂无可用 AI：会直接用本地兜底。👇 用下方「一键接入免费 AI」3 分钟接一个 Gemini / Groq / DeepSeek。';
   const authState = await Auth.getAuthState();
   $('#backup-enc-hint').textContent = authState.mode === MODE.PASSPHRASE
     ? '导入会合并任务 / 历史 / 统计；本地密码账号已解锁时，导出的备份会用 AES-GCM 加密。'
@@ -1474,6 +1632,10 @@ async function renderMyView() {
     syncButton.textContent = '当前环境不支持';
   }
   await refreshUserBadge();
+  // v0.5.1：渲染免费 AI 向导 + 诊断面板 + 柔性引导
+  renderFreeAiWizard();
+  await renderDiagPanel(settings);
+  await updateAiNudge(settings, tier);
 }
 
 async function enterMyView() {
@@ -1880,6 +2042,41 @@ $('#my-ai-rerank-enabled').addEventListener('change', async (event) => {
   await refreshLLMHint();
   await renderMyView();
   flash(event.target.checked ? '已启用免费 AI 精修' : '已关闭 AI 精修');
+});
+
+// v0.5.1 · FIX 4.5：柔性引导点击 → 展开向导所在的「我的」并聚焦
+$('#ai-nudge')?.addEventListener('click', () => {
+  const wizard = $('#free-ai-wizard');
+  if (wizard) wizard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
+// v0.5.1 · FIX 5：诊断面板 复制 / 清空
+$('#btn-diag-copy')?.addEventListener('click', async () => {
+  const [settings, log] = await Promise.all([
+    Storage.getSettings().catch(() => ({})),
+    Storage.getDebugLog().catch(() => []),
+  ]);
+  const llm = settings?.llm || {};
+  const payload = {
+    app: '懒羊羊大王',
+    version: APP_VERSION,
+    ts: new Date().toISOString(),
+    chromePromptApi: chromePromptApiAvailable(),
+    aiRerankEnabled: settings?.aiRerankEnabled !== false,
+    provider: (llm.enabled && llm.providerId) ? llm.providerId : null,
+    model: llm.model || null,
+    baseUrl: llm.baseUrl || null,
+    recent: log.slice(-20),
+  };
+  const ok = await copyText(JSON.stringify(payload, null, 2));
+  flash(ok ? '诊断信息已复制，可粘贴反馈 📋' : '复制失败，请手动截图');
+});
+
+$('#btn-diag-clear')?.addEventListener('click', async () => {
+  await Storage.clearDebugLog().catch(() => {});
+  const settings = await Storage.getSettings().catch(() => ({}));
+  await renderDiagPanel(settings);
+  flash('已清空诊断记录');
 });
 
 $('#btn-sync-toggle').addEventListener('click', async () => {
