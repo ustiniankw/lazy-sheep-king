@@ -1,8 +1,18 @@
-// options.js — v0.3.4: 免费 AI 精修 + 用户 API 降级配置
+// options.js — v0.6.0: 认证瘦身 + 昵称/头像编辑器 + 免费 AI 精修 + 用户 API 降级配置
 import { Storage } from '../lib/storage.js';
 import { PROVIDERS, findProvider, getWizardProviders } from '../lib/providers.js';
 import { detectAvailableTier } from '../lib/ai_rerank.js';
 import { chatComplete } from '../lib/llm_client.js';
+import {
+  getIdentity,
+  saveNickname,
+  rollNewNickname,
+  rollNewAvatar,
+  useUploadedAvatar,
+  pickAvatarStyle,
+  setDisplayName,
+} from '../lib/user.js';
+import { AVATAR_STYLES } from '../lib/identity.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -62,6 +72,30 @@ async function renderChromeAiStatus() {
   const ok = tier === 'chrome-ai';
   pill.textContent = ok ? '可用' : '不可用（Chrome 138+ / flag / Origin Trial）';
   pill.className = 'status-pill ' + (ok ? 'ok' : 'warn');
+}
+
+// v0.6.0 · 认证瘦身：昵称 + DiceBear 头像 编辑器
+async function renderIdentitySection() {
+  const identity = await getIdentity();
+  const input = $('#identity-nickname');
+  if (input && document.activeElement !== input) input.value = identity.nickname || '';
+  const preview = $('#identity-avatar-img');
+  if (preview) preview.src = identity.avatarUrl || '';
+  const row = $('#identity-style-row');
+  if (row) {
+    const active = identity.avatarKind === 'upload' ? '' : identity.avatarStyle;
+    row.querySelectorAll('.identity-style-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.avatarStyle === active);
+    });
+  }
+}
+
+function flashIdentityTip(text) {
+  const tip = $('#identity-save-tip');
+  if (!tip) return;
+  tip.textContent = text;
+  tip.style.color = 'var(--ios-green, #34C759)';
+  setTimeout(() => { if (tip.textContent === text) tip.textContent = ''; }, 2000);
 }
 
 // v0.5.1 · FIX 4：免费 AI 一键接入向导
@@ -147,6 +181,7 @@ async function load() {
   applyProvider(currentProviderId);
   renderFreeAiWizard();
   await renderChromeAiStatus();
+  await renderIdentitySection();
 
   $('#ai-rerank-enabled').checked = s.aiRerankEnabled !== false;
   $('#llm-enabled').checked = !!s.llm?.enabled;
@@ -250,6 +285,69 @@ $('#btn-clear-all').addEventListener('click', async () => {
   await Storage.resetAllLocalData();
   alert('已重置所有数据。');
   await load();
+});
+
+// v0.6.0 · 昵称 / 头像编辑器事件绑定
+$('#btn-identity-save-name')?.addEventListener('click', async () => {
+  const value = $('#identity-nickname').value.trim();
+  if (!value) { flashIdentityTip('昵称不能为空'); return; }
+  await setDisplayName(value);
+  await renderIdentitySection();
+  flashIdentityTip('昵称已保存 ✅');
+});
+
+$('#btn-identity-reroll-name')?.addEventListener('click', async () => {
+  const next = await rollNewNickname();
+  await setDisplayName(next.nickname);
+  await renderIdentitySection();
+  flashIdentityTip('已换一个新昵称 🎲');
+});
+
+$('#identity-avatar-preview')?.addEventListener('click', async () => {
+  await rollNewAvatar();
+  await renderIdentitySection();
+});
+$('#identity-avatar-preview')?.addEventListener('keydown', async (event) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    await rollNewAvatar();
+    await renderIdentitySection();
+  }
+});
+
+document.querySelectorAll('.identity-style-btn').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const style = btn.dataset.avatarStyle;
+    if (!AVATAR_STYLES.includes(style)) return;
+    await pickAvatarStyle(style);
+    await rollNewAvatar(style);
+    await renderIdentitySection();
+  });
+});
+
+$('#btn-identity-reroll-avatar')?.addEventListener('click', async () => {
+  await rollNewAvatar();
+  await renderIdentitySection();
+  flashIdentityTip('换了一个新头像 ✨');
+});
+
+$('#btn-identity-upload')?.addEventListener('click', () => $('#identity-upload-input')?.click());
+$('#identity-upload-input')?.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (file.size > 512 * 1024) { flashIdentityTip('图片超过 512KB，试试小一点的'); event.target.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      await useUploadedAvatar(String(reader.result || ''));
+      await renderIdentitySection();
+      flashIdentityTip('头像已更新 📸');
+    } catch (error) {
+      flashIdentityTip('上传失败：' + (error?.message || error));
+    }
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
 });
 
 load();

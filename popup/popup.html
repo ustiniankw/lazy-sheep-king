@@ -405,11 +405,11 @@
           <div class="account-avatar-wrap">
             <img id="account-avatar-img" class="account-avatar-img hidden" alt="头像" />
             <div id="account-avatar-fallback" class="account-avatar-fallback">🐑</div>
-            <span id="account-verified" class="verified-badge hidden" title="GitHub 已验证身份">✔</span>
           </div>
           <div class="account-main">
             <div class="account-name-row">
               <input id="account-display-name" class="account-name-input" placeholder="给自己起个名字" />
+              <button id="btn-account-reroll-name" class="ios-btn tiny ios-btn-ghost" title="随机再来一个昵称">🎲</button>
               <button id="btn-account-save-name" class="ios-btn tiny ios-btn-ghost" title="保存昵称">保存</button>
             </div>
             <div class="account-chip-row">
@@ -421,8 +421,31 @@
         </div>
 
         <div class="my-card">
-          <div class="my-card-title">🔐 账号与认证</div>
-          <div class="my-card-sub" id="auth-hint-text">选择一种免费方式创建账号，多设备也能找回你的进度。</div>
+          <div class="my-card-title">🖼 我的头像</div>
+          <div class="my-card-sub">点头像换一个新造型，也可以选风格或上传一张本地图片。</div>
+          <div class="avatar-editor">
+            <div class="avatar-editor-preview" id="avatar-editor-preview" role="button" tabindex="0" title="点一下换一个头像">
+              <img id="avatar-editor-img" alt="当前头像" />
+            </div>
+            <div class="avatar-editor-actions">
+              <div class="avatar-style-row" id="avatar-style-row">
+                <button class="avatar-style-btn" data-avatar-style="thumbs">🎨 拇指</button>
+                <button class="avatar-style-btn" data-avatar-style="bottts">🤖 机器人</button>
+                <button class="avatar-style-btn" data-avatar-style="avataaars">🧑 小人</button>
+                <button class="avatar-style-btn" data-avatar-style="lorelei">👧 手绘</button>
+              </div>
+              <div class="avatar-editor-buttons">
+                <button id="btn-avatar-reroll" class="ios-btn small ios-btn-secondary">🎲 随机换</button>
+                <button id="btn-avatar-upload" class="ios-btn small ios-btn-ghost">📤 上传图片</button>
+              </div>
+            </div>
+            <input id="avatar-upload-input" type="file" accept="image/*" style="display:none" />
+          </div>
+        </div>
+
+        <div class="my-card">
+          <div class="my-card-title">🔐 账号与备份</div>
+          <div class="my-card-sub" id="auth-hint-text">默认匿名即可用；想加密备份的话可以再挂一个本地密码。</div>
           <div class="account-actions" id="account-actions"><!-- 由 JS 按当前模式渲染 --></div>
         </div>
 
@@ -594,7 +617,6 @@
 
         <div class="modal-tabs">
           <button class="modal-tab active" data-modal-tab="passphrase">🔐 本地密码</button>
-          <button class="modal-tab" data-modal-tab="github">🐙 GitHub</button>
         </div>
 
         <!-- 本地密码 -->
@@ -611,32 +633,7 @@
           <input id="pp-pass2" class="modal-input" type="password" placeholder="再输入一次" />
           <div class="modal-error hidden" id="pp-error"></div>
           <button id="btn-pp-submit" class="ios-btn ios-btn-primary big block" style="margin-top:12px">🔐 创建本地密码账号</button>
-          <div class="modal-note">本地密码账号在任何环境（含网页试玩）都可用，密码只用于在本机派生加密密钥。</div>
-        </div>
-
-        <!-- GitHub -->
-        <div class="modal-pane hidden" data-pane="github">
-          <label class="modal-label">你的 GitHub OAuth App client_id</label>
-          <input id="gh-client-id" class="modal-input" placeholder="Iv1.xxxxxxxxxxxx" />
-          <div class="modal-note">
-            为保持"完全免费 + 完全归你所有"，我们不内置共享 client_id。请自建一个免费的
-            <b>GitHub OAuth App</b>：勾选 <b>Enable Device Flow</b>，把 Client ID 粘贴到上面即可。
-          </div>
-          <button id="btn-gh-start" class="ios-btn ios-btn-primary big block" style="margin-top:12px">🐙 开始 GitHub 登录</button>
-
-          <div class="gh-flow hidden" id="gh-flow">
-            <div class="gh-code-row">
-              <span class="gh-code" id="gh-user-code">---------</span>
-              <button id="btn-gh-copy" class="ios-btn tiny ios-btn-secondary">📋 复制</button>
-            </div>
-            <div class="gh-qr" id="gh-qr"></div>
-            <div class="gh-flow-hint">
-              打开 <a id="gh-verify-link" href="https://github.com/login/device" target="_blank" rel="noopener">github.com/login/device</a>
-              输入上面的代码完成授权。
-            </div>
-            <div class="gh-status" id="gh-status">等待授权中…<span id="gh-countdown"></span></div>
-          </div>
-          <div class="modal-error hidden" id="gh-error"></div>
+          <div class="modal-note">本地密码仅在本机派生备份加密密钥；不联网、不上传、不用于任何身份验证。</div>
         </div>
       </div>
     </div>

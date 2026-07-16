@@ -12,9 +12,44 @@
       <img src="../icons/icon-128.png" class="logo" alt="懒羊羊大王" />
       <div>
         <h1>懒羊羊大王 · 设置</h1>
-        <p class="lead">v0.4.0：iOS 原生风 UI 重构 · 保留全部 v0.3.x 功能</p>
+        <p class="lead">v0.6.0：认证瘦身 + 2C 化落地页 · 自动昵称 + DiceBear 免费头像</p>
       </div>
     </header>
+
+    <section class="card">
+      <h2>👤 我的昵称与头像</h2>
+      <p class="hint">首次进来就已经自动分配了昵称和头像；不喜欢可以随时换。所有信息只保存在本机浏览器。</p>
+      <div class="identity-editor">
+        <div class="identity-avatar-preview" id="identity-avatar-preview" role="button" tabindex="0" title="点头像随机换一个">
+          <img id="identity-avatar-img" alt="当前头像" />
+        </div>
+        <div class="identity-fields">
+          <div class="field">
+            <label>昵称</label>
+            <div class="identity-name-row">
+              <input type="text" id="identity-nickname" placeholder="例如：会飞的橘子237" />
+              <button id="btn-identity-reroll-name" class="btn ghost" type="button">🎲 随机</button>
+              <button id="btn-identity-save-name" class="btn primary" type="button">保存</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>头像风格</label>
+            <div class="identity-style-row" id="identity-style-row">
+              <button class="identity-style-btn" data-avatar-style="thumbs" type="button">🎨 拇指</button>
+              <button class="identity-style-btn" data-avatar-style="bottts" type="button">🤖 机器人</button>
+              <button class="identity-style-btn" data-avatar-style="avataaars" type="button">🧑 小人</button>
+              <button class="identity-style-btn" data-avatar-style="lorelei" type="button">👧 手绘</button>
+            </div>
+            <div class="identity-buttons">
+              <button id="btn-identity-reroll-avatar" class="btn ghost" type="button">🎲 换一个随机头像</button>
+              <button id="btn-identity-upload" class="btn ghost" type="button">📤 上传本地图片</button>
+              <input id="identity-upload-input" type="file" accept="image/*" style="display:none" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="hint" id="identity-save-tip"></p>
+    </section>
 
     <section class="card">
       <h2>⚡ 一键接入免费 AI <span class="v-badge">Gemini / Groq / DeepSeek 免费 tier</span></h2>
@@ -145,7 +180,7 @@
     </div>
 
     <footer>
-      <p>懒羊羊大王 v0.4.0 · Made with 🐑 by <a href="https://github.com/ustiniankw" target="_blank">ustiniankw</a></p>
+      <p>懒羊羊大王 v0.6.0 · Made with 🐑 by <a href="https://github.com/ustiniankw" target="_blank">ustiniankw</a></p>
     </footer>
   </div>
   <script src="options.js" type="module"></script>

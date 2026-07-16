@@ -1,5 +1,68 @@
 # CHANGELOG
 
+## v0.6.0 — 认证瘦身 + 2C 化落地页（2026-07-16）
+
+> 产品化里程碑。把懒羊羊大王的定位从"技术工程 demo"彻底转为**面向普通用户（2C）**的执行力小工具：GitHub Pages 落地页大改为纯 2C 入口 + 卸掉 GitHub / Google OAuth 相关一切 + 自动分配可爱昵称和免费头像。**测试全绿（55 subtest / 273+ 断言），零功能回退。**
+
+### ✨ 新增
+
+- **`lib/identity.js`（新增）** — v0.6.0 认证瘦身的核心：
+  - `generateNickname()` 从 32 个可爱中文形容词 + 34 个名词（水果 / 动物 / 食物 / 自然）+ 3 位随机数字生成昵称，示例 `"会飞的橘子237"` / `"打盹的柚子42"` / `"干饭的南瓜101"`。
+  - `defaultAvatarUrl(seed | {seed, style})` 返回 `https://api.dicebear.com/9.x/<style>/svg?seed=<...>` 的 DiceBear 免费头像 URL，不需要任何 API key、不上传用户数据。
+  - 4 种风格：`thumbs` / `bottts` / `avataaars` / `lorelei`；`nextAvatarStyle` 用于循环切换。
+  - `ensureIdentity(storage)` 幂等：storage 里已有 `nickname / avatarUrl` 就返回；否则生成并写入 `lsk_identity_v1` 全局键。
+  - `updateIdentity / rerollNickname / rerollAvatar / setUploadedAvatar` 覆盖所有编辑动作，`setUploadedAvatar` 支持 dataURL 上传本地图片。
+- **`popup` 头像编辑器** — 「我的」页新增一整块头像编辑区：
+  - 点头像随机换一个 seed；4 个风格按钮（🎨 拇指 / 🤖 机器人 / 🧑 小人 / 👧 手绘）一键切换；🎲 换头像 / 📤 上传本地图片（≤ 512KB）。
+  - 昵称输入右侧新增 🎲「随机再来一个」按钮，一键换新昵称。
+- **`options` 设置页新增身份编辑区** — 独立卡片，含头像 96px 预览、昵称输入 + 保存 / 随机、头像风格切换、上传本地图片。
+- **`index.html` 完全重写为 2C 落地页** — 纯发布会风：
+  - 品牌头 `🐑 懒羊羊大王` + 一句 tagline "把大任务拆成小步骤，一点点搞定"。
+  - 一个巨大的 **「立即开始」** 主 CTA，直接跳 `popup/popup.html?full=1&pwa=1`。
+  - PWA `beforeinstallprompt` 监听 → 显示 「📲 添加到主屏」次要 CTA；`appinstalled` 后自动隐藏 + toast 反馈；iOS 兜底提示。
+  - 4 张核心功能卡：`✨ AI 拆解` / `🐾 养宠物` / `🎯 组队打卡` / `📅 日历追踪`；下方"三步开始"简介卡。
+  - 极简 footer：版本号小字 + GitHub 仓库 + 意见反馈（GitHub Issues）。
+  - 页面首屏彻底删除：`在线试玩` / `preview` / `demo` / `v0.x.x 亮点` / `roadmap` / `design tokens` / `tests passing / MV3 / PWA / Manifest V3` 等技术 jargon。
+
+### 🗑 移除 / 下线
+
+- **卸掉 GitHub Device Flow / Google Sign-in UI 与代码路径**
+  - `popup/popup.html`：`sign-in-modal` 里的 `🐙 GitHub` Tab、`gh-client-id / gh-flow / gh-user-code / gh-qr / gh-verify-link / gh-status / gh-error / btn-gh-start / btn-gh-copy` 一整块 pane 全删；`account-verified` GitHub 已验证徽章删。
+  - `popup/popup.js`：`startGitHubFlow` / `renderTextQR` / `ghAborted / ghCountdownTimer` 全部函数删；`renderAccountActions` 里 `用 GitHub 登录 / 用 Google 登录（disabled）` 按钮删；`renderAccountCard` 里 `MODE.GITHUB` 分支删；`buildMyMemberSnapshot({ provider: 'github' })` 改为空字符串；team 成员卡里的 🐙 GitHub 徽章删。
+  - `options/options.html / options.js`：本轮之前就没有 GitHub / Google 按钮，仅更新版本号；新增身份编辑区。
+- **manifest 权限瘦身**
+  - `manifest.json`：删掉 `identity` permission；`host_permissions` 里 `https://github.com/*` / `https://api.github.com/*` 删掉，仅留 `https://api.dicebear.com/*` + 通用 `https://*/*` + `http://*/*`（供用户自配 AI provider）。
+  - 结果：扩展安装时的权限申请列表比 v0.5.2 更短，用户心智负担降低。
+- **`lib/auth.js` 主流程改为纯匿名 + 昵称/头像**
+  - `MODE.GITHUB` / `MODE.GOOGLE` 常量保留作向后兼容；`beginGitHubDeviceFlow / pollGitHubDeviceFlow / signInGoogle` 三个函数一律返回 `{ ok: false, code: 'NOT_ENABLED', message: 'v0.6.0 起已下线 GitHub / Google 登录' }` 或抛 `NOT_ENABLED`，`getGitHubToken` 恒定返回 `null`。旧代码引用不崩，但主流程再不走 OAuth。
+  - `getAuthState()` 现在始终附带 `nickname / avatarUrl / avatarKind / avatarStyle / avatarSeed / displayName`，UI 端不再区分「访客有没有头像」。
+- **`lib/user.js` 变成向后兼容 facade**
+  - 委托给 `auth.js + identity.js + storage.js`；新增 `getIdentity / saveNickname / rollNewNickname / rollNewAvatar / useUploadedAvatar / pickAvatarStyle` 6 个便捷方法；`setDisplayName` 会同步 profile displayName + identity nickname。
+
+### 🔧 版本
+
+- `manifest.json` → `0.6.0`
+- `service-worker.js` `CACHE_NAME` → `lsk-cache-v0.6.0`（APP_SHELL 新增 `./lib/identity.js`）
+- `popup/popup.js` `APP_VERSION` → `0.6.0`
+- `options/options.html` / footer → `0.6.0`
+- `index.html` footer 版本号 → `v0.6.0`
+- `tests/pwa.test.mjs` 断言从 `lsk-cache-v0.5.2` 更新到 `lsk-cache-v0.6.0`
+
+### 🧪 测试
+
+- **新增 `tests/identity.test.mjs`（17 assertions）**：形容词 / 名词库 ≥30、`generateNickname` 三位数字后缀、`defaultAvatarUrl` v9.x URL 格式、DiceBear URL 识别、`nextAvatarStyle` 循环、`ensureIdentity` 幂等（同一 storage 反复调用返回同一 identity）、`rerollNickname / rerollAvatar` 会改变结果、`setUploadedAvatar` 把 `avatarKind` 切成 `upload`、`updateIdentity` 部分补丁行为、旧数据（只带 nickname 无 avatar 字段）补齐兼容。
+- **`tests/auth.test.mjs` 更新**（18 assertions）：新增匿名主流程覆盖（`getAuthState` 自动带 nickname + dicebear 头像、`isSignedIn` 纯匿名返回 false）；保留原有 setup / verify / change passphrase、PBKDF2 派生、加密备份 roundtrip、signOut 回到 guest；新增 `beginGitHubDeviceFlow / getGitHubToken / signInGoogle` 均返回 `NOT_ENABLED` 的下线断言。
+- `node --test tests/*.mjs`：**55 subtest / 273+ 断言全绿**，无功能回退。
+
+### 📝 说明
+
+- Web 版落地页 (`https://ustiniankw.github.io/lazy-sheep-king`) 更新后，用户会直接看到新的 2C 入口；PWA 用户会通过顶部横幅（v0.5.2 起）拿到新版本。
+- 「本地密码账号」被重新定位为「备份加密可选项」，UI 文案改为「挂一个本地密码」 / 「清除本地密码」，不再表述为"账号"。
+- `usr_xxx` 匿名 userId、任务 / 宠物 / 日历 / 组队数据一律**保留**，v0.6.0 属于**向后兼容升级**。
+- `manifest.webmanifest`（PWA manifest）本身没有 `version` 字段，无需改动；`start_url` 仍指向 `./popup/popup.html?full=1&pwa=1`。
+
+---
+
 ## v0.5.2 — GitHub Pages 自动部署 + Release-on-tag + PWA 新版本发现横幅（2026-07-16）
 
 > 发布工程小版本。让 Web 版有一条对外的**稳定长期 URL**（`https://ustiniankw.github.io/lazy-sheep-king`），并给「装成 Chrome 扩展」提供一键 zip 产物，方便非技术用户使用。**测试全绿，零功能回退。**
