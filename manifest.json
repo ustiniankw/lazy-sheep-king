@@ -3,7 +3,7 @@
   "name": "懒羊羊大王 · 执行力助手",
   "short_name": "懒羊羊大王",
   "description": "把大任务拆成超简单的小步骤，每完成一步都有懒羊羊的鼓励～ 一步一步征服拖延症！",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": "夏凯文",
   "action": {
     "default_title": "打开懒羊羊大王",
@@ -33,13 +33,29 @@
   "permissions": [
     "storage",
     "notifications",
-    "identity"
+    "identity",
+    "tabs"
   ],
   "host_permissions": [
     "https://github.com/*",
     "https://api.github.com/*",
     "https://*/*",
     "http://*/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "popup/popup.html",
+        "popup/popup.css",
+        "popup/popup.js",
+        "manifest.webmanifest",
+        "service-worker.js",
+        "icons/*",
+        "lib/*",
+        "options/*"
+      ],
+      "matches": ["<all_urls>"]
+    }
   ],
   "commands": {
     "_execute_action": {

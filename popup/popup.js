@@ -1,4 +1,4 @@
-// popup.js — v0.3.3: 删除修复 / 宠物反馈 / 用户资料 / 同步基础
+// popup.js — v0.5.0: 响应式 + PWA + Open-in-Tab
 import { Storage } from '../lib/storage.js';
 import { breakdownTask, refineStep, rememberBreakdown } from '../lib/breakdown.js';
 import { celebrateStep, celebrateAll } from '../lib/celebrate.js';
@@ -10,8 +10,9 @@ import * as Auth from '../lib/auth.js';
 import { MODE } from '../lib/auth.js';
 import { PRIVACY, cyclePrivacy, newTeamCode, buildMyMemberSnapshot, mergeTeamState, makePoke } from '../lib/team.js';
 import { detectAvailableTier } from '../lib/ai_rerank.js';
+import { computeBreakpoint } from '../lib/layout.js';
 
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.5.0';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const urlParams = new URLSearchParams(location.search);
@@ -50,7 +51,7 @@ const PRIVACY_LABELS = {
 };
 const TEAM_SYNC_INTERVAL_MS = 60_000;
 
-if (urlParams.get('full') === '1') document.body.classList.add('full');
+if (urlParams.get('full') === '1' || urlParams.get('pwa') === '1') document.body.classList.add('full', 'full-page');
 
 let currentTask = null;
 let settingsCache = null;
@@ -69,9 +70,19 @@ function showView(name) {
   updateTopbarTitle(name);
   const tab = VIEW_META[name]?.tab;
   if (tab) setActiveTab(tab);
+  // Update sidebar + icon rail active state
+  updateSidebarActive(tab || name);
   // iOS 风格：切换视图时把主内容滚到顶部
   const main = document.querySelector('.ios-main');
   if (main) main.scrollTop = 0;
+}
+
+function updateSidebarActive(navId) {
+  // Map tab names to nav data
+  const navMap = { home: 'home', task: 'task', pet: 'pet', calendar: 'calendar', team: 'team', my: 'my' };
+  const activeNav = navMap[navId] || navId;
+  $$('.ios-sidebar-item').forEach((btn) => btn.classList.toggle('active', btn.dataset.nav === activeNav));
+  $$('.ios-rail-item').forEach((btn) => btn.classList.toggle('active', btn.dataset.nav === activeNav));
 }
 
 function escapeHtml(value) {
@@ -1547,9 +1558,14 @@ const stimer = createCountdown({
   },
 });
 
-$('#btn-open-full')?.addEventListener('click', () => {
-  if (typeof chrome !== 'undefined' && chrome?.tabs) chrome.tabs.create({ url: chrome.runtime.getURL('popup/popup.html?full=1') });
-  else window.open(location.pathname + '?full=1', '_blank');
+// Open in Tab button
+$('#btn-open-tab')?.addEventListener('click', () => {
+  if (typeof chrome !== 'undefined' && chrome?.tabs && chrome?.runtime?.id) {
+    chrome.tabs.create({ url: chrome.runtime.getURL('popup/popup.html?full=1') });
+    window.close();
+  } else {
+    window.open(location.pathname + '?full=1', '_blank');
+  }
 });
 $('#btn-options')?.addEventListener('click', openOptions);
 $('#btn-my')?.addEventListener('click', enterMyView);
@@ -2128,9 +2144,167 @@ $('#btn-account-lock').addEventListener('click', async () => {
   await renderMyView();
 });
 
+// ---------------------------------------------------------------------------
+// v0.5.0 · Sidebar + Icon Rail navigation
+// ---------------------------------------------------------------------------
+function handleNavClick(navId) {
+  if (navId === 'home') showHome();
+  else if (navId === 'task') showTaskInput();
+  else if (navId === 'pet') enterPetView();
+  else if (navId === 'calendar') enterCalendarView();
+  else if (navId === 'team') enterTeamView();
+  else if (navId === 'my') enterMyView();
+}
+$$('.ios-sidebar-item').forEach((btn) => {
+  btn.addEventListener('click', () => handleNavClick(btn.dataset.nav));
+});
+$$('.ios-rail-item').forEach((btn) => {
+  btn.addEventListener('click', () => handleNavClick(btn.dataset.nav));
+});
+
+// ---------------------------------------------------------------------------
+// v0.5.0 · Desktop mode setting
+// ---------------------------------------------------------------------------
+function applyDesktopMode(mode) {
+  document.body.classList.remove('desktop-mode-3pane', 'desktop-mode-centered');
+  if (mode === 'centered') document.body.classList.add('desktop-mode-centered');
+  else document.body.classList.add('desktop-mode-3pane');
+  $$('#desktop-mode-segmented .seg-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.mode === mode));
+}
+
+$('#desktop-mode-segmented')?.addEventListener('click', async (event) => {
+  const btn = event.target.closest('.seg-btn');
+  if (!btn) return;
+  const mode = btn.dataset.mode;
+  settingsCache = await Storage.setSettings({ desktopMode: mode });
+  applyDesktopMode(mode);
+  flash(mode === 'centered' ? '已切换为单列极简' : '已切换为三栏');
+});
+
+// ---------------------------------------------------------------------------
+// v0.5.0 · Open-in setting (popup vs tab)
+// ---------------------------------------------------------------------------
+$('#open-in-segmented')?.addEventListener('click', async (event) => {
+  const btn = event.target.closest('.seg-btn');
+  if (!btn) return;
+  const openIn = btn.dataset.openin;
+  settingsCache = await Storage.setSettings({ defaultOpenIn: openIn });
+  $$('#open-in-segmented .seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.openin === openIn));
+  flash(openIn === 'tab' ? '默认在新标签页打开' : '默认弹窗打开');
+});
+
+// ---------------------------------------------------------------------------
+// v0.5.0 · Open-in-Tab visibility
+// ---------------------------------------------------------------------------
+function updateOpenTabButton() {
+  const btn = $('#btn-open-tab');
+  if (!btn) return;
+  const isFull = urlParams.get('full') === '1' || urlParams.get('pwa') === '1';
+  btn.classList.toggle('hidden', isFull);
+}
+
+// ---------------------------------------------------------------------------
+// v0.5.0 · PWA
+// ---------------------------------------------------------------------------
+let deferredPrompt = null;
+
+if ('serviceWorker' in navigator && !('chrome' in window && chrome.runtime?.id)) {
+  navigator.serviceWorker.register('../service-worker.js').catch(() => {});
+}
+
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  deferredPrompt = event;
+  const btn = $('#btn-pwa-install');
+  if (btn) btn.classList.remove('hidden');
+});
+
+$('#btn-pwa-install')?.addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const result = await deferredPrompt.userChoice;
+  if (result.outcome === 'accepted') flash('已安装为 App 🎉');
+  deferredPrompt = null;
+  $('#btn-pwa-install')?.classList.add('hidden');
+});
+
+function maybeShowIOSInstallHint() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (!isIOS || isStandalone) return;
+  if (localStorage.getItem('pwa_install_hint_dismissed')) return;
+  const hint = document.createElement('div');
+  hint.className = 'pwa-ios-hint';
+  hint.innerHTML = '<p>📲 将「懒羊羊大王」添加到主屏幕：<br/>点击底部 <b>分享按钮 ⎙</b> → <b>添加到主屏幕</b></p><button class="ios-btn ios-btn-primary small" id="ios-hint-dismiss">知道了</button>';
+  document.body.appendChild(hint);
+  hint.querySelector('#ios-hint-dismiss').addEventListener('click', () => {
+    localStorage.setItem('pwa_install_hint_dismissed', '1');
+    hint.remove();
+  });
+}
+
+function updateOnlineStatus() {
+  const chip = $('#offline-chip');
+  if (chip) chip.classList.toggle('hidden', navigator.onLine !== false);
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
+// ---------------------------------------------------------------------------
+// v0.5.0 · Right panel data refresh
+// ---------------------------------------------------------------------------
+async function refreshRightPanel() {
+  const stats = await Storage.getStats();
+  const today = stats.dailyLog?.[todayDateKey()] || { steps: 0, food: 0 };
+  const petState = await Pets.getState().catch(() => null);
+  const avatarEl = $('#right-pet-avatar');
+  if (avatarEl) avatarEl.textContent = '🐑';
+  const nameEl = $('#right-pet-name');
+  if (nameEl) nameEl.textContent = petState?.activeId ? (Pets.petTypeById(petState.activeId)?.name || '懒羊羊') : '懒羊羊';
+  const lvEl = $('#right-pet-level');
+  if (lvEl) lvEl.textContent = `Lv.${stats.petLevel || 1}`;
+  const stepsEl = $('#right-today-steps'); if (stepsEl) stepsEl.textContent = String(today.steps || 0);
+  const foodEl = $('#right-today-food'); if (foodEl) foodEl.textContent = String(today.food || 0);
+  const dailyLog = stats.dailyLog || {};
+  let streak = 0;
+  const day = new Date();
+  for (let i = 0; i < 400; i++) {
+    const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+    const v = dailyLog[key];
+    if (v && v.steps > 0) { streak++; day.setDate(day.getDate() - 1); }
+    else { if (i === 0) { day.setDate(day.getDate() - 1); continue; } break; }
+  }
+  const streakEl = $('#right-streak'); if (streakEl) streakEl.textContent = String(streak);
+  const strip = $('#right-heatmap-strip');
+  if (strip) {
+    const cells = buildHeatmap(dailyLog, 14);
+    strip.innerHTML = cells.map((c) => `<div class="cal-cell" data-level="${c.level}" title="${c.date}: ${c.steps} 步"></div>`).join('');
+  }
+}
+
 (async function boot() {
   await ensureProfile();
   await primeSettingsCache();
+
+  // v0.5.0 · Apply desktop mode + open-tab visibility + auto-redirect
+  const desktopMode = settingsCache?.desktopMode || '3pane';
+  applyDesktopMode(desktopMode);
+  updateOpenTabButton();
+  updateOnlineStatus();
+  maybeShowIOSInstallHint();
+
+  // Auto-redirect to tab if defaultOpenIn === 'tab' and we're in extension popup
+  const isExtPopup = typeof chrome !== 'undefined' && chrome?.runtime?.id && window.location.protocol === 'chrome-extension:';
+  if (isExtPopup && settingsCache?.defaultOpenIn === 'tab' && urlParams.get('full') !== '1') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('popup/popup.html?full=1') });
+    window.close();
+    return;
+  }
+
+  // Update open-in segmented control UI
+  const openIn = settingsCache?.defaultOpenIn || 'popup';
+  $$('#open-in-segmented .seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.openin === openIn));
+
   await refreshLLMHint();
   await refreshResumeCard();
   await refreshUserBadge();
@@ -2138,9 +2312,10 @@ $('#btn-account-lock').addEventListener('click', async () => {
   await ensureTeamSyncLoop();
   await syncTeamState({ force: true }).catch(() => {});
   await maybeToastUnreadPokes();
+  await refreshRightPanel();
   const current = await Storage.getCurrentTask();
   const startView = urlParams.get('view');
-  if (current && current.currentIndex < current.steps.length && urlParams.get('full') === '1' && !startView) {
+  if (current && current.currentIndex < current.steps.length && (urlParams.get('full') === '1' || urlParams.get('pwa') === '1') && !startView) {
     enterStepsView(current);
   } else if (startView === 'pet') {
     await enterPetView();

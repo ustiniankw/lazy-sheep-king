@@ -1210,3 +1210,215 @@ body:not(.full) .ios-tabbar { position: sticky; bottom: 0; margin-top: auto; }
 /* ==================== Utilities ==================== */
 .hidden { display: none !important; }
 .icon-badge.hidden { display: none !important; }
+
+
+/* ==================== v0.5.0 Responsive Layout ==================== */
+
+/* Layout shell — flexbox container for sidebar + main + right panel */
+.ios-layout-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Sidebar (hidden on phone, shown on tablet+) */
+.ios-sidebar {
+  display: none;
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--surface-card);
+  border-right: 1px solid var(--separator);
+  padding: 12px 8px;
+  overflow-y: auto;
+}
+.ios-sidebar-nav { display: flex; flex-direction: column; gap: 2px; }
+.ios-sidebar-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s var(--ease-ios), color 0.15s;
+  text-align: left;
+  width: 100%;
+}
+.ios-sidebar-item:hover { background: var(--ios-gray6); }
+.ios-sidebar-item.active { background: rgba(0,122,255,0.12); color: var(--ios-blue); }
+.ios-sidebar-icon { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
+
+/* Icon rail (desktop-centered only) */
+.ios-icon-rail {
+  display: none;
+  width: 56px;
+  flex-shrink: 0;
+  background: var(--surface-card);
+  border-right: 1px solid var(--separator);
+  padding: 12px 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.ios-rail-item {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s var(--ease-ios);
+  position: relative;
+}
+.ios-rail-item:hover { background: var(--ios-gray6); }
+.ios-rail-item.active { background: rgba(0,122,255,0.12); }
+.ios-rail-item[title]::after {
+  content: attr(title);
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%; transform: translateY(-50%);
+  background: var(--surface-elev);
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-elev);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s 0.25s;
+  z-index: 100;
+}
+.ios-rail-item:hover[title]::after { opacity: 1; }
+
+/* Right panel (desktop-3pane only) */
+.ios-right-panel {
+  display: none;
+  width: 300px;
+  flex-shrink: 0;
+  background: var(--surface-card);
+  border-left: 1px solid var(--separator);
+  padding: 16px;
+  overflow-y: auto;
+}
+.ios-right-section { margin-bottom: 18px; }
+.ios-right-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+.right-pet-mini { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--surface-bg); border-radius: 12px; }
+.right-pet-avatar { width: 40px; height: 40px; border-radius: 10px; background: var(--ios-gray6); display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.right-pet-name { font-size: 14px; font-weight: 600; }
+.right-pet-sub { font-size: 11px; color: var(--text-secondary); }
+.right-stats-mini { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.right-stat { text-align: center; padding: 8px; background: var(--surface-bg); border-radius: 10px; }
+.right-stat-num { display: block; font-size: 18px; font-weight: 700; color: var(--ios-blue); }
+.right-stat-label { font-size: 10px; color: var(--text-secondary); }
+.right-heatmap-strip { display: flex; gap: 3px; flex-wrap: wrap; }
+.right-heatmap-strip .cal-cell { width: 14px; height: 14px; border-radius: 3px; background: #EBEDF0; }
+
+/* Topbar quick nav buttons — hidden on tablet+ (sidebar covers them) */
+.topbar-quick-nav { /* shown by default */ }
+
+/* Main content in layout shell */
+.ios-layout-shell > .ios-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* PWA install chip */
+.pwa-install-chip { cursor: pointer; font-size: 12px; padding: 4px 10px; }
+
+/* Desktop mode segmented control */
+.desktop-mode-segmented {
+  display: flex;
+  background: var(--ios-gray6);
+  border-radius: 10px;
+  padding: 3px;
+  margin-top: 8px;
+}
+.desktop-mode-segmented .seg-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s var(--ease-ios);
+}
+.desktop-mode-segmented .seg-btn.active {
+  background: var(--surface-card);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-card);
+}
+
+/* iOS Safari PWA install hint bottom sheet */
+.pwa-ios-hint {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--surface-card);
+  border-radius: 18px 18px 0 0;
+  padding: 20px 20px 28px;
+  box-shadow: 0 -8px 30px rgba(0,0,0,0.15);
+  z-index: 200;
+  animation: iosSheetUp 0.36s var(--ease-ios);
+  text-align: center;
+}
+.pwa-ios-hint p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0 0 12px; }
+.pwa-ios-hint .ios-btn { margin: 0 auto; }
+
+/* ==================== Tablet breakpoint (640-1023px) ==================== */
+@media (min-width: 640px) {
+  .ios-sidebar { display: flex; flex-direction: column; }
+  .ios-tabbar { display: none; }
+  .topbar-quick-nav { display: none; }
+  .ios-main { padding-bottom: 24px; }
+  body.full .app { max-width: 100%; border: none; }
+  .app { width: 100%; }
+}
+
+/* ==================== Desktop breakpoint (≥1024px) ==================== */
+@media (min-width: 1024px) {
+  /* Default: desktop-3pane */
+  .ios-sidebar { width: 220px; }
+  .ios-right-panel { display: flex; flex-direction: column; }
+  .ios-icon-rail { display: none; }
+
+  body.full .app { max-width: 100%; }
+  .app { width: 100%; min-height: 100vh; }
+  body.full .ios-main { max-width: none; }
+}
+
+/* JS-override classes for desktop mode */
+body.desktop-mode-centered .ios-sidebar { display: none !important; }
+body.desktop-mode-centered .ios-right-panel { display: none !important; }
+body.desktop-mode-centered .ios-icon-rail { display: flex !important; }
+body.desktop-mode-centered .ios-main { max-width: 720px; margin: 0 auto; }
+
+body.desktop-mode-3pane .ios-sidebar { display: flex !important; }
+body.desktop-mode-3pane .ios-icon-rail { display: none !important; }
+
+/* On phone, layout shell is still column-based like before */
+@media (max-width: 639px) {
+  .ios-layout-shell { flex-direction: column; }
+  .ios-sidebar { display: none !important; }
+  .ios-right-panel { display: none !important; }
+  .ios-icon-rail { display: none !important; }
+  body.desktop-mode-3pane .ios-sidebar { display: none !important; }
+  body.desktop-mode-3pane .ios-right-panel { display: none !important; }
+  body.desktop-mode-centered .ios-icon-rail { display: none !important; }
+}
+
+/* Full-page mode padding improvements */
+body.full-page .ios-main { padding: 20px 24px 40px; }
+body.full-page .app { width: 100%; max-width: 100%; border: none; min-height: 100vh; }
+
+/* prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .fade-in, .view, .step-card, .mascot-big, .crown { animation: none !important; }
+  * { transition-duration: 0.01ms !important; }
+}

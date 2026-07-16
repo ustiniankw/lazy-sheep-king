@@ -4,7 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>懒羊羊大王</title>
+  <meta name="theme-color" content="#007AFF" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <link rel="icon" href="../icons/icon-48.png" />
+  <link rel="apple-touch-icon" href="../icons/icon-256.png" />
+  <link rel="manifest" href="../manifest.webmanifest" />
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
@@ -16,16 +21,43 @@
       </button>
       <div class="ios-topbar-title" id="topbar-title">懒羊羊大王</div>
       <div class="ios-topbar-actions">
-        <button id="btn-calendar" class="ios-icon-btn" title="完成日历打卡图">📅</button>
-        <button id="btn-team" class="ios-icon-btn" title="组队模式">
+        <button id="btn-calendar" class="ios-icon-btn topbar-quick-nav" title="完成日历打卡图">📅</button>
+        <button id="btn-team" class="ios-icon-btn topbar-quick-nav" title="组队模式">
           <span>👥</span>
           <span id="team-bell-badge" class="ios-badge hidden">0</span>
         </button>
-        <button id="btn-my" class="ios-icon-btn" title="我的">👤</button>
-        <button id="btn-open-full" class="ios-icon-btn" title="在新标签页打开大屏模式">⛶</button>
+        <button id="btn-my" class="ios-icon-btn topbar-quick-nav" title="我的">👤</button>
+        <button id="btn-open-tab" class="ios-icon-btn" title="在新标签页打开">⤢</button>
+        <button id="btn-pwa-install" class="ios-chip tint-blue pwa-install-chip hidden">📲 安装 App</button>
+        <span id="offline-chip" class="ios-chip tint-orange hidden">⚡ 离线模式</span>
         <button id="btn-options" class="ios-icon-btn" title="设置">⚙</button>
       </div>
     </header>
+
+    <!-- ==================== Layout Shell ==================== -->
+    <div class="ios-layout-shell">
+
+    <!-- Sidebar (tablet+, desktop-3pane) -->
+    <aside class="ios-sidebar" aria-label="导航侧栏">
+      <div class="ios-sidebar-nav">
+        <button class="ios-sidebar-item active" data-nav="home"><span class="ios-sidebar-icon">🏠</span><span>首页</span></button>
+        <button class="ios-sidebar-item" data-nav="task"><span class="ios-sidebar-icon">📋</span><span>任务</span></button>
+        <button class="ios-sidebar-item" data-nav="pet"><span class="ios-sidebar-icon">🐑</span><span>宠物</span></button>
+        <button class="ios-sidebar-item" data-nav="calendar"><span class="ios-sidebar-icon">📅</span><span>打卡</span></button>
+        <button class="ios-sidebar-item" data-nav="team"><span class="ios-sidebar-icon">👥</span><span>队友</span></button>
+        <button class="ios-sidebar-item" data-nav="my"><span class="ios-sidebar-icon">👤</span><span>我的</span></button>
+      </div>
+    </aside>
+
+    <!-- Icon rail (desktop-centered) -->
+    <nav class="ios-icon-rail" aria-label="导航栏">
+      <button class="ios-rail-item active" data-nav="home" title="首页">🏠</button>
+      <button class="ios-rail-item" data-nav="task" title="任务">📋</button>
+      <button class="ios-rail-item" data-nav="pet" title="宠物">🐑</button>
+      <button class="ios-rail-item" data-nav="calendar" title="打卡">📅</button>
+      <button class="ios-rail-item" data-nav="team" title="队友">👥</button>
+      <button class="ios-rail-item" data-nav="my" title="我的">👤</button>
+    </nav>
 
     <!-- ==================== Main ==================== -->
     <main class="ios-main">
@@ -403,6 +435,24 @@
         </div>
 
         <div class="my-card">
+          <div class="my-card-title">🖥 桌面显示</div>
+          <div class="my-card-sub">在大屏（≥1024px）时的布局方式</div>
+          <div class="desktop-mode-segmented" id="desktop-mode-segmented">
+            <button class="seg-btn active" data-mode="3pane">三栏</button>
+            <button class="seg-btn" data-mode="centered">单列极简</button>
+          </div>
+        </div>
+
+        <div class="my-card">
+          <div class="my-card-title">🚀 启动方式</div>
+          <div class="my-card-sub">Chrome 扩展点击图标时的默认行为</div>
+          <div class="desktop-mode-segmented" id="open-in-segmented">
+            <button class="seg-btn active" data-openin="popup">弹窗</button>
+            <button class="seg-btn" data-openin="tab">新标签页</button>
+          </div>
+        </div>
+
+        <div class="my-card">
           <div class="my-card-title">📦 备份与恢复</div>
           <div class="my-actions-grid">
             <button id="btn-export-backup" class="ios-btn small ios-btn-secondary">📤 导出</button>
@@ -437,6 +487,34 @@
       </section>
 
     </main>
+
+    <!-- Right panel (desktop-3pane only) -->
+    <aside class="ios-right-panel" aria-label="快捷面板">
+      <div class="ios-right-section">
+        <div class="ios-right-title">🐑 宠物</div>
+        <div class="right-pet-mini" id="right-pet-mini">
+          <div class="right-pet-avatar" id="right-pet-avatar">🐑</div>
+          <div class="right-pet-info">
+            <div class="right-pet-name" id="right-pet-name">懒羊羊</div>
+            <div class="right-pet-sub" id="right-pet-level">Lv.1</div>
+          </div>
+        </div>
+      </div>
+      <div class="ios-right-section">
+        <div class="ios-right-title">📊 今日统计</div>
+        <div class="right-stats-mini">
+          <div class="right-stat"><span class="right-stat-num" id="right-today-steps">0</span><span class="right-stat-label">步骤</span></div>
+          <div class="right-stat"><span class="right-stat-num" id="right-today-food">0</span><span class="right-stat-label">养料</span></div>
+          <div class="right-stat"><span class="right-stat-num" id="right-streak">0</span><span class="right-stat-label">连续</span></div>
+        </div>
+      </div>
+      <div class="ios-right-section">
+        <div class="ios-right-title">📅 近 14 天打卡</div>
+        <div class="right-heatmap-strip" id="right-heatmap-strip"></div>
+      </div>
+    </aside>
+
+    </div><!-- /.ios-layout-shell -->
 
     <!-- ==================== Bottom Tab Bar ==================== -->
     <nav class="ios-tabbar" role="tablist" aria-label="主导航">
