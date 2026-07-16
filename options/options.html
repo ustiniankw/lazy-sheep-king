@@ -17,17 +17,23 @@
     </header>
 
     <section class="card">
-      <h2>🍃 AI 精修（免费） <span class="v-badge">Chrome AI → 用户 API → 本地兜底</span></h2>
+      <h2>⚡ 一键接入免费 AI <span class="v-badge">Gemini / Groq / DeepSeek 免费 tier</span></h2>
+      <p class="hint">推荐路线：任选一家免费额度 provider，按三步拿到 key 填进去点「保存并测试」，成功后拆解就会用真实 AI 精修。全程免费、无需绑卡。</p>
+      <div id="free-ai-wizard" class="free-ai-wizard"><!-- 由 JS 渲染 --></div>
+    </section>
+
+    <section class="card">
+      <h2>🍃 AI 精修（免费） <span class="v-badge">用户 API → Chrome AI → 本地兜底</span></h2>
       <div class="field">
         <label>
           <input type="checkbox" id="ai-rerank-enabled" />
           启用 AI 精修（免费）
         </label>
-        <p class="hint">先用本地模板产出步骤，再尝试用免费能力把标题 / 估时 / 鼓励 tips 精修得更贴题。</p>
+        <p class="hint">先用本地模板产出步骤，再尝试用免费能力把标题 / 估时 / 鼓励 tips 精修得更贴题。优先使用你配置的用户 API；Chrome 内置 AI 仅作被动降级。</p>
       </div>
       <div class="status-box">
         <div class="status-row">
-          <span class="status-label">Chrome 内置 AI</span>
+          <span class="status-label">Chrome AI（仅 138+ 且启用 flag，实验性）</span>
           <span id="chrome-ai-status" class="status-pill">检测中…</span>
         </div>
         <div class="status-row">
@@ -35,7 +41,7 @@
           <span class="status-note">本功能仅使用免费方案，不产生任何 API 费用。</span>
         </div>
       </div>
-      <p class="hint">说明：Chrome Prompt API / LanguageModel 目前仍受 Chrome 版本、实验开关或 Origin Trial 条件影响；不可用时会自动降级。</p>
+      <p class="hint">说明：Chrome Prompt API / LanguageModel 因浏览器版本 / 实验开关 / Origin Trial 条件对多数用户不可用，已降级为可选被动兜底；请优先用上方「一键接入免费 AI」。</p>
     </section>
 
     <section class="card">

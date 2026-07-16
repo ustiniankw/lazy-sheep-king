@@ -152,6 +152,14 @@
           <span class="btn-emoji">✂️</span>拆成傻瓜步骤，开干！
         </button>
 
+        <!-- FIX 6：骨架 loader，拆解等待时显示，避免"卡死"观感 -->
+        <div id="breakdown-skeleton" class="breakdown-skeleton hidden" aria-hidden="true">
+          <div class="skeleton-row"><span class="skeleton-dot"></span><span class="skeleton-bar"></span></div>
+          <div class="skeleton-row"><span class="skeleton-dot"></span><span class="skeleton-bar w80"></span></div>
+          <div class="skeleton-row"><span class="skeleton-dot"></span><span class="skeleton-bar w60"></span></div>
+          <div class="skeleton-row"><span class="skeleton-dot"></span><span class="skeleton-bar w70"></span></div>
+        </div>
+
         <div id="resume-card" class="resume-card hidden">
           <div class="resume-title">上次还有一个任务没完成 👇</div>
           <div class="resume-body">
@@ -426,6 +434,42 @@
             启用 AI 精修（免费）
           </label>
           <div class="my-card-sub">本功能仅使用免费方案，不产生任何 API 费用。</div>
+          <!-- FIX 4.5：未配置任何 AI 时的柔性引导 -->
+          <div id="ai-nudge" class="wizard-nudge hidden">✨ 启用 AI 精修可让拆解更贴合场景 → 点这里 3 分钟接入免费 Gemini</div>
+        </div>
+
+        <!-- FIX 4：一键接入免费 AI 向导 -->
+        <div class="my-card">
+          <div class="my-card-title">⚡ 一键接入免费 AI</div>
+          <div class="my-card-sub">三家免费额度可选，拿到 key 填进去点「保存并测试」即可，全程无需绑卡付费。</div>
+          <div id="free-ai-wizard" class="free-ai-wizard"><!-- 由 JS 渲染 --></div>
+          <div class="my-card-sub" style="margin-top:10px">
+            Chrome 内置 AI 仅作被动降级：<b>Chrome AI（仅 138+ 且启用 flag，实验性）</b>，多数用户不可用。
+          </div>
+        </div>
+
+        <!-- FIX 5：拆解诊断面板 -->
+        <div class="my-card">
+          <details id="diag-panel" class="diag-details">
+            <summary>
+              <span class="diag-summary-row">
+                <span>🔧 拆解诊断</span>
+                <span class="my-card-sub" style="font-weight:400">最近 5 次记录</span>
+              </span>
+            </summary>
+            <div class="diag-body">
+              <div class="diag-kv"><span>Chrome Prompt API</span><code id="diag-chrome-ai">—</code></div>
+              <div class="diag-kv"><span>AI 精修</span><code id="diag-ai-enabled">—</code></div>
+              <div class="diag-kv"><span>Provider</span><code id="diag-provider">—</code></div>
+              <div class="diag-kv"><span>Model</span><code id="diag-model">—</code></div>
+              <div class="diag-kv"><span>Base URL</span><code id="diag-base">—</code></div>
+              <ul id="diag-log-list" class="diag-log-list"></ul>
+              <div class="diag-actions">
+                <button id="btn-diag-copy" class="ios-btn small ios-btn-secondary">📋 复制诊断 JSON</button>
+                <button id="btn-diag-clear" class="ios-btn small ios-btn-ghost">清空</button>
+              </div>
+            </div>
+          </details>
         </div>
 
         <div class="my-card">

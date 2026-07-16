@@ -201,3 +201,20 @@ footer {
   font-size: 12px;
 }
 footer a { color: var(--ios-blue); text-decoration: none; }
+
+/* ==================== v0.5.1: 免费 AI 一键向导 ==================== */
+.free-ai-wizard { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 6px; }
+@media (min-width: 720px) { .free-ai-wizard { grid-template-columns: 1fr 1fr 1fr; } }
+.wizard-card { border: 1px solid var(--border, rgba(0,0,0,0.1)); border-radius: 12px; padding: 14px; background: rgba(120,120,128,0.04); }
+.wizard-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.wizard-card-title { font-weight: 700; font-size: 14px; }
+.wizard-free-tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 100px; background: rgba(52,199,89,0.16); color: #34c759; }
+.wizard-note { font-size: 12px; color: var(--text-secondary); margin: 6px 0; }
+.wizard-steps { margin: 8px 0; padding-left: 18px; font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
+.wizard-getkey-link { display: inline-block; margin: 2px 0 10px; font-size: 12px; color: var(--ios-blue); text-decoration: none; }
+.wizard-form { display: flex; gap: 8px; }
+.wizard-key-input { flex: 1; min-width: 0; padding: 8px 10px; font-size: 13px; border: 1px solid var(--border, rgba(0,0,0,0.15)); border-radius: 8px; background: transparent; color: inherit; }
+.wizard-save-btn { white-space: nowrap; }
+.wizard-probe-result { margin-top: 8px; font-size: 12px; min-height: 16px; word-break: break-word; }
+.wizard-probe-result.ok { color: #34c759; }
+.wizard-probe-result.err { color: #ff3b30; }

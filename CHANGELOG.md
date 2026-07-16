@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## v0.5.1 — 永不卡住 + 免费 AI 一键接入（2026-07-16）
+
+🚀 **在线试玩**：https://324d0dbb517c.aime-app.bytedance.net
+
+> 本次为 bugfix + 体验版本，聚焦两个真实用户反馈：「免费 AI 用不了」「只有列出的几个任务能拆解，其他会卡住」。**278 个测试断言全部通过（37/37 test 文件绿）**，零功能回退。
+
+### 🐛 修复
+
+- **修复：低覆盖任务会卡住 → 现在永不卡住**。本地管线（normalize → classify → template → 通用兜底）保证 <100ms 内返回 **≥ 4 个有效步骤**，绝不 hang、绝不抛异常。AI rerank 加 **6s 硬超时（Promise.race）**，超时静默回退本地并记诊断日志；popup CTA「开始拆解」最长锁定 8s，超时展示本地结果 + toast「AI 精修超时，已使用本地拆解结果」。任何 AI JSON 解析错误 → 静默丢弃 AI 部分保留本地；整条管线 try/catch，异常时仍返回安全通用模板 + toast「拆解遇到异常，已使用通用模板 · 详情见诊断」。
+- **修复：本地兜底 `default.generic` 对任意任务输出合理 5-6 步**。基于归一化 `subject` + 提取到的 hints（时间 / 数量 / 公里 / 页数 / deadline）动态生成「明确目标 → 拆第一小步 → 集中做 N 分钟 → 回顾进度 → 收尾整理」骨架；有 `minutes` hint 时替换第 3 步时长。
+
+### ✨ 新增
+
+- **新增 8-10 个意图 + 关键词库扩充 30-50%**：`life.finance.tax` / `life.parenting` / `life.gift` / `life.medical` / `life.legal` / `life.housing` / `life.relationship` / `life.hobby.instrument` / `life.hobby.craft` / `career.job_search.followup`，并为每个既有意图补充口语 / 英文混写 / 同义词。
+- **通用模板池**：`default.generic` 从单一兜底升级为 deep-work / lightweight / creative / research / social 5 套骨架，用主语动词的廉价启发式挑「最贴合」的一套 —— 即使不匹配任何意图，也能给出最合适的通用拆法。
+- **Google Gemini / Groq / DeepSeek 免费 tier 一键向导**：三步注册指引 + 预填 baseUrl / model + `保存并测试` 探针请求（发 `hello, respond with the word ready`），成功显示绿色 ✓、失败显示红色详细错误。「我的」和设置页均可用。
+- **拆解诊断面板**（我的 → 折叠区）：显示 Chrome Prompt API 可用性、已配置 provider / model / base、最近 5 次拆解记录（ts / input / intent / source / latency / tier / ok / error），一键复制为 JSON 便于反馈；本地环形缓冲保留最近 20 次，**永不记录 key**。
+- **AI rerank 6s 超时 + 骨架 loader**：等待时展示 3-4 行灰色 shimmer 骨架，不再「假死」。
+
+### 🔧 说明
+
+- **Chrome 内置 Prompt API 因浏览器兼容不稳定，降级为可选被动兜底**。检测顺序改为 **优先使用用户配置的 API**（若已配置 key），Chrome Prompt API 变为 Tier 2；UI 标签更新为 `Chrome AI（仅 138+ 且启用 flag，实验性）`。未配置任何 AI 时会给出「3 分钟接入免费 Gemini」的柔性引导。
+
+---
+
 ## v0.5.0 — 多端形态：响应式 + PWA + Open-in-Tab（2026-07-16）
 
 🚀 **在线试玩**：https://1e8add08b5ba.aime-app.bytedance.net
