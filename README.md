@@ -6,6 +6,43 @@
 
 ![banner](./icons/mascot.png)
 
+---
+
+## 🌐 使用方式 A · 打开网页立即用（PWA · 推荐）
+
+**稳定 URL：** [`https://ustiniankw.github.io/lazy-sheep-king`](https://ustiniankw.github.io/lazy-sheep-king)
+
+> 上面这条链接是最终对外的**长期稳定地址**（需要仓库 owner 在 GitHub Settings → Pages 里手动 **Enable Pages（Source: GitHub Actions）** 一次；`.github/workflows/deploy-pages.yml` 已配好，之后每次推到 `main` 都会自动重新部署）。启用前你也可以看**临时预览**：<https://79c4c1538b17.aime-app.bytedance.net
+
+- **📱 手机 Safari / Chrome**：打开链接 → 点底部「分享」按钮 ⎙ → 选「添加到主屏幕」
+- **💻 PC Chrome / Edge**：打开链接 → 地址栏右侧的 ⤓ 安装图标 → 「安装」
+- **🔄 更新方式：下次打开自动拿到最新版**（Service Worker + 顶部横幅「🔄 发现新版本 · 点这里刷新」，v0.5.2 起）
+
+## 🧩 使用方式 B · 装成 Chrome 扩展（自己打包）
+
+**三步安装** — 傻瓜级：
+
+1. 📥 到 [**Release 页**](https://github.com/ustiniankw/lazy-sheep-king/releases/latest) 下载最新的 `lazy-sheep-king-vX.Y.Z.zip`
+2. 📂 解压到本地任意目录（例如 `~/Downloads/lazy-sheep-king/`）
+3. 🧩 打开 `chrome://extensions` → 右上角开启「**开发者模式**」→ 点「**加载已解压的扩展程序**」→ 选中刚解压的目录
+
+**备注**：
+- ⌨️ `Alt + L` 一键呼出 popup
+- 📌 建议在扩展工具栏点右键把懒羊羊图标 pin 出来
+- 🔄 **更新方式：**Release 页有新版本时，重新下载解压、在 `chrome://extensions` 点扩展卡上的 🔄「重新加载」即可（在正式上架 Chrome Web Store 之前，这是唯一手动方式）
+
+## 🛠 使用方式 C · 从源码自己 build（给动手能力强的）
+
+```bash
+git clone https://github.com/ustiniankw/lazy-sheep-king.git
+```
+
+然后直接把整个目录作为 unpacked 扩展加载即可（步骤同上）。仓库根本身就是可用的扩展目录，不需要任何构建步骤。
+
+> **未来 Chrome Web Store 上架计划**：等一个稳定 milestone（v0.6+）后会打包发布到 CWS，届时会同时更新到「Web 版 + CWS 一键安装」两条链路。目前依然保持零付费依赖、纯前端。
+
+---
+
 ## 🛟 v0.5.1 · 永不卡住 + 免费 AI 一键接入
 
 本次是 bugfix + 体验版本，直击两个真实用户反馈：
