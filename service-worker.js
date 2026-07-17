@@ -1,5 +1,5 @@
-// service-worker.js — v0.8.5 PWA cache（Worker 兼容 KV / LSK_KV 双 binding 名）
-const CACHE_NAME = 'lsk-cache-v0.8.5';
+// service-worker.js — v0.8.6 PWA cache（Worker 兼容 KV / LSK_KV 双 binding 名）
+const CACHE_NAME = 'lsk-cache-v0.8.6';
 
 const APP_SHELL = [
   './',

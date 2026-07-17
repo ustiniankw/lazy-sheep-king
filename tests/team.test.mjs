@@ -8,7 +8,7 @@ globalThis.localStorage = {
 globalThis.chrome = undefined;
 
 const { Storage } = await import('../lib/storage.js');
-const { PRIVACY, newTeamCode, buildMyMemberSnapshot, mergeTeamState, makePoke, deriveMemberId, resolveTeamBackend, parseJoinCode, LocalTeamMock, makeTeamFacade } = await import('../lib/team.js');
+const { PRIVACY, newTeamCode, buildMyMemberSnapshot, mergeTeamState, makePoke, deriveMemberId, resolveTeamBackend, parseJoinCode, LocalTeamMock, makeTeamFacade, buildTeamCreatePayload, buildTeamMemberCardVM } = await import('../lib/team.js');
 
 let pass = 0;
 let fail = 0;
@@ -323,6 +323,53 @@ await t('getTeamSession / setTeamSession / clearTeamSession', async () => {
   eq(s.teamCode, '');
   eq(s.teamToken, '');
   eq(s.teamMemberId, '');
+});
+
+console.log('team.js · v0.8.6 identity consistency');
+
+await t('buildTeamCreatePayload 从 identity 读取 nickname/avatar', async () => {
+  const payload = buildTeamCreatePayload({
+    memberId: 'm_self',
+    profile: { displayName: '旧 profile 名' },
+    identity: {
+      nickname: '懒大王',
+      avatarUrl: 'https://example.com/lazy.png',
+      avatarSeed: 'lazy-seed',
+      avatarKind: 'dicebear',
+    },
+  });
+  eq(payload.founder.memberId, 'm_self');
+  eq(payload.founder.nickname, '懒大王');
+  eq(payload.founder.avatarUrl, 'https://example.com/lazy.png');
+  eq(payload.founder.avatarSeed, 'lazy-seed');
+  eq(payload.founder.avatarKind, 'dicebear');
+});
+
+await t('self 成员卡片用本地 identity 覆盖 Worker 回显', async () => {
+  const vm = buildTeamMemberCardVM(
+    {
+      memberId: 'm_self',
+      nickname: '干饭的海豹854',
+      avatarUrl: 'https://example.com/wrong.png',
+      lastSeenAt: 123,
+      snapshot: { progress: 40, activeTaskTitle: '写周报' },
+    },
+    {
+      selfId: 'm_self',
+      persistedMemberId: 'm_self',
+      localIdentity: {
+        nickname: '懒大王',
+        avatarUrl: 'https://example.com/lazy.png',
+        avatarSeed: 'lazy-seed',
+        avatarKind: 'dicebear',
+      },
+    },
+  );
+  eq(vm.isSelf, true);
+  eq(vm.name, '懒大王');
+  eq(vm.avatarUrl, 'https://example.com/lazy.png');
+  eq(vm.avatarSeed, 'lazy-seed');
+  eq(vm.label, '写周报 · 40%');
 });
 
 console.log(`\nresult: ${pass} passed, ${fail} failed`);
