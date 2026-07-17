@@ -29,7 +29,7 @@ import * as CryptoBackup from '../lib/crypto_backup.js';
 import * as SyncClient from '../lib/sync_client.js';
 import { DEFAULT_BACKEND_URL } from '../lib/sync_config.js';
 
-const APP_VERSION = '0.8.3';
+const APP_VERSION = '0.8.4';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const urlParams = new URLSearchParams(location.search);
@@ -38,15 +38,15 @@ const urlParams = new URLSearchParams(location.search);
 // v0.4.0 · iOS 原生风：视图 ↔ Tab 映射 + 大标题动态切换
 // ---------------------------------------------------------------------------
 const VIEW_META = {
-  home:     { title: '懒羊羊大王', tab: 'home' },
-  input:    { title: '新任务',     tab: 'task' },
-  plan:     { title: '拆解结果',   tab: 'task' },
-  steps:    { title: '专注一步',   tab: 'task' },
-  done:     { title: '任务完成',   tab: 'task' },
-  pet:      { title: '宠物之家',   tab: 'pet'  },
-  calendar: { title: '打卡记录',   tab: 'calendar' },
-  team:     { title: '组队模式',   tab: 'my'   },
-  my:       { title: '我的',       tab: 'my'   },
+  home:     { title: '懒羊羊大王', tab: 'home', nav: 'home' },
+  input:    { title: '新任务',     tab: 'task', nav: 'task' },
+  plan:     { title: '拆解结果',   tab: 'task', nav: 'task' },
+  steps:    { title: '专注一步',   tab: 'task', nav: 'task' },
+  done:     { title: '任务完成',   tab: 'task', nav: 'task' },
+  pet:      { title: '宠物之家',   tab: 'pet',  nav: 'pet'  },
+  calendar: { title: '打卡记录',   tab: 'calendar', nav: 'calendar' },
+  team:     { title: '组队模式',   tab: 'my',   nav: 'team' },
+  my:       { title: '我的',       tab: 'my',   nav: 'my'   },
 };
 
 function updateTopbarTitle(view) {
@@ -89,7 +89,9 @@ function showView(name) {
   const tab = VIEW_META[name]?.tab;
   if (tab) setActiveTab(tab);
   // Update sidebar + icon rail active state
-  updateSidebarActive(tab || name);
+  // v0.8.4：侧边栏/图标栏用独立的 nav（team 有专属项），不要复用底部 tabbar 的 tab，
+  // 否则进入组队页会把高亮错误地停在「我的」上。
+  updateSidebarActive(VIEW_META[name]?.nav || tab || name);
   // iOS 风格：切换视图时把主内容滚到顶部
   const main = document.querySelector('.ios-main');
   if (main) main.scrollTop = 0;
@@ -863,16 +865,18 @@ function teamShareLink(code) {
 }
 
 // Worker 错误 → 友好中文提示
+// v0.8.4：把后端返回的真实 message 透传出来，避免把 4xx/5xx 都误报成"网络不好"。
 function friendlyTeamError(error) {
   if (error instanceof SyncClient.SyncHttpError) {
+    const detail = (error.body && error.body.message) ? String(error.body.message) : '';
     switch (error.status) {
-      case 400: return '队伍码错误';
+      case 400: return detail ? `参数错误：${detail}` : '参数错误，请检查后重试';
       case 401: return '登录状态失效，请重新加入';
       case 403: return '队伍已满';
       case 404: return '队伍不存在';
       case 409: return '队伍码冲突，请重试';
       case 429: return '太频繁了，稍等一下';
-      default: return '网络不好，请重试';
+      default: return detail ? `服务器错误（${error.status}）：${detail}` : `服务器错误（${error.status}），请重试`;
     }
   }
   if (error instanceof SyncClient.SyncDisabledError) return '云端未启用';
