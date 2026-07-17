@@ -1,5 +1,43 @@
 # CHANGELOG
 
+## v0.7.0 — 端到端加密备份 + 手机端修复（2026-07-17）
+
+> 主功能：**备份短语（助记词）+ 端到端加密备份**，全程离线、零后端。同时修复两个手机端体验 Bug。**测试全绿（75 subtest）。**
+
+### ✨ 新增 · 端到端加密备份
+
+- **`lib/wordlist.js`（新增）** — 自建 512 词英文词表（512 = 2^9，`uint32 % 512` 无模偏差）。14 词 ≈ 126 bit 熵。
+- **`lib/crypto_backup.js`（新增，纯函数、可测）**：
+  - `generateMnemonic(wordCount = 14)` — 用 WebCrypto `getRandomValues` 从词表生成备份短语。
+  - `mnemonicToKey(mnemonic, salt)` — PBKDF2-SHA256 · 100k rounds → 32 byte AES-GCM `CryptoKey`。
+  - `encryptBlob(data, key)` / `decryptBlob(blob, key)` — AES-GCM，随机 12-byte IV，输出 base64（`{v, alg, iv, ct}`）。
+  - `validateMnemonic(mnemonic)` — 校验词数 + 单词全部在词表内（大小写/空格归一化）。
+  - `mnemonicHash(mnemonic)` — SHA-256 hex，用于校验用户后续输入是否为同一短语。
+  - `encryptWithMnemonic / decryptWithMnemonic` 便捷组合。
+  - 兼容浏览器（`globalThis.crypto`）与 Node（Node<20 用 `import { webcrypto } from 'node:crypto'` 兜底）。
+- **「我的」页新增「🔐 备份与恢复（端到端加密）」卡片**：
+  - **生成备份短语** → 弹出 modal 显示 14 词，配「📋 一键复制」「⬇ 下载 txt」，**必须勾选「我已保存好」才能关闭**。
+  - **导出加密备份** → 输入短语（校验 hash 匹配）→ 用短语加密全部本地数据（tasks / pets / stats / dailyLog / feedLog / team / settings / identity）→ 下载 `.lsk-backup` 文件。
+  - **导入加密备份** → 上传文件 + 输入 14 词 → 解密恢复（并入既有合并策略）。
+  - **无短语时隐藏「导出」按钮**，提示「请先生成备份短语」。
+- **短语明文永不落磁盘**：只在 modal 显示一次；用户勾选「已保存」后清除内存；storage 只存 `mnemonicHash`（SHA-256，全局键 `lsk_backup_mnemonic_hash_v1`）。
+- **加密数据仅本地下载**（v0.8 再接 Cloudflare 云同步，本版本纯离线）。
+- **`tests/crypto_backup.test.mjs`（新增）** — 16 个测例：encrypt/decrypt roundtrip、wrong key fails、篡改检测、mnemonic 校验、hash 稳定性、随机 IV、词表规模等。
+
+### 🐛 修复 · 手机端
+
+- **底部导航栏遮挡按钮**：手机模式（`<640px`）下主内容 `padding-bottom = calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px)`；底部悬浮 CTA / toast 加入 `env(safe-area-inset-bottom)`；tab bar 自身补 `env(safe-area-inset-bottom)` 对齐 iOS home indicator。桌面 & 平板不动。
+  - `lib/layout.js` 新增可测纯函数 `contentBottomPadding(breakpoint)` / `floatingCtaBottom(breakpoint)`，`tests/layout.test.mjs` 补 4 个测例。
+- **深色模式按钮对比度不足**：步骤页「🍃 太难？再拆一层」(`.chip-btn`) 原本用恒亮的 `--ios-gray6` 底 + 白字不可读；「⏹ 停止」(`.ios-btn-destructive`) 透明底红字对比不够。深色模式下改为：次级/chip 按钮 `rgba(255,255,255,0.08)` 底 + `rgba(255,255,255,0.15)` 边框 + 亮色文字；危险按钮 `rgba(255,80,80,0.15)` 底 + `#ff8a8a` 文字，满足 ≥ 4.5:1 对比度。
+
+### 🔧 版本 & 缓存
+
+- `manifest.json` → `0.7.0`；`popup/popup.js` `APP_VERSION` → `0.7.0`。
+- `service-worker.js` `CACHE_NAME` → `lsk-cache-v0.7.0`；`APP_SHELL` 新增 `./lib/crypto_backup.js` + `./lib/wordlist.js`。
+- `index.html` 页脚版本号 → `v0.7.0`（落地页 UI 保持极简，未加任何新版本亮点区块）。
+- `options/options.html` 版本文案 → `0.7.0`。
+- `tests/pwa.test.mjs` 断言从 `lsk-cache-v0.6.0` 更新到 `lsk-cache-v0.7.0`。
+
 ## v0.6.0 — 认证瘦身 + 2C 化落地页（2026-07-16）
 
 > 产品化里程碑。把懒羊羊大王的定位从"技术工程 demo"彻底转为**面向普通用户（2C）**的执行力小工具：GitHub Pages 落地页大改为纯 2C 入口 + 卸掉 GitHub / Google OAuth 相关一切 + 自动分配可爱昵称和免费头像。**测试全绿（55 subtest / 273+ 断言），零功能回退。**

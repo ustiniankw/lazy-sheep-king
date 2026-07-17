@@ -192,11 +192,12 @@ body.full .app {
 .ios-main {
   flex: 1;
   min-height: 0;
-  padding: 12px var(--page-pad) calc(var(--tabbar-h) + 24px);
+  /* v0.7.0 手机端：底部留出 tab bar + iOS home indicator 安全区，避免底端按钮被遮挡 */
+  padding: 12px var(--page-pad) calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 16px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
-body.full .ios-main { padding-bottom: calc(var(--tabbar-h) + 40px); }
+body.full .ios-main { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 40px); }
 
 /* Views + transitions */
 .view.hidden { display: none; }
@@ -1160,7 +1161,9 @@ body.full .ios-main { padding-bottom: calc(var(--tabbar-h) + 40px); }
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-top: 1px solid var(--separator);
   display: flex;
-  padding: 4px 4px 8px;
+  /* v0.7.0 手机端：底部补 iOS home indicator 安全区 */
+  padding: 4px 4px calc(8px + env(safe-area-inset-bottom));
+  box-sizing: content-box;
   z-index: 30;
   max-width: 480px;
   margin: 0 auto;
@@ -1197,7 +1200,7 @@ body:not(.full) .ios-tabbar { position: sticky; bottom: 0; margin-top: auto; }
 /* ==================== Toast ==================== */
 .lsk-toast {
   position: fixed;
-  bottom: calc(var(--tabbar-h) + 20px);
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 20px);
   left: 50%;
   transform: translateX(-50%) translateY(24px);
   min-height: 36px;
@@ -1564,3 +1567,78 @@ body.full-page .app { width: 100%; max-width: 100%; border: none; min-height: 10
 .diag-log-item .ok-dot { color: #34c759; }
 .diag-log-item .err-dot { color: #ff3b30; }
 .diag-actions { margin-top: 10px; display: flex; gap: 8px; }
+
+
+/* ==================== v0.7.0 深色模式按钮对比度修复 ==================== */
+/* Bug：步骤页「🍃 太难？再拆一层」(.chip-btn) 背景是 --ios-gray6(#F2F2F7 恒亮)，
+ * 深色下配 --text-primary(白) → 白字浅底不可读；「⏹ 停止」(.ios-btn-destructive)
+ * 透明底 + --ios-red 对比不足。以下在深色模式统一修复，保证 ≥ 4.5:1 对比度。 */
+@media (prefers-color-scheme: dark) {
+  /* 次级 / chip 按钮：浅灰底 → 半透明白底 + 边框 + 亮文字 */
+  .chip-btn:not(.privacy-chip),
+  .step-est,
+  .ios-btn-secondary,
+  .btn.secondary {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-primary);
+  }
+  /* 次级按钮的图标/文字保持亮色即可（不再用会与浅底冲突的深色） */
+  .ios-btn-secondary { color: var(--text-primary); }
+  /* 危险 / 停止 / 放弃：透明红字 → 半透明红底 + 亮红字（#ff8a8a） */
+  .ios-btn-destructive,
+  .btn.danger {
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff8a8a;
+  }
+  /* 幽灵按钮保持透明底，文字改亮蓝以保证可读 */
+  .ios-btn-ghost,
+  .btn.ghost { color: var(--ios-teal); }
+}
+
+
+/* ==================== v0.7.0 备份短语 modal ==================== */
+.mnemonic-grid {
+  list-style: none;
+  counter-reset: mword;
+  padding: 0;
+  margin: 14px 0 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.mnemonic-grid li {
+  counter-increment: mword;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--separator);
+  border-radius: 10px;
+  font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.mnemonic-grid li::before {
+  content: counter(mword);
+  min-width: 20px;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  font-family: var(--font-stack);
+}
+.mnemonic-actions { display: flex; gap: 8px; margin-bottom: 12px; }
+.mnemonic-actions .ios-btn { flex: 1; }
+.mnemonic-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  padding: 8px 2px;
+}
+.mnemonic-confirm input { margin-top: 2px; flex-shrink: 0; }

@@ -23,9 +23,10 @@ import { getWizardProviders, findProvider } from '../lib/providers.js';
 import { chatComplete } from '../lib/llm_client.js';
 import { computeBreakpoint } from '../lib/layout.js';
 import { installSWUpdateWatcher } from '../lib/pwa_update.js';
-import { AVATAR_STYLES } from '../lib/identity.js';
+import { AVATAR_STYLES, IDENTITY_STORE_KEY } from '../lib/identity.js';
+import * as CryptoBackup from '../lib/crypto_backup.js';
 
-const APP_VERSION = '0.6.0';
+const APP_VERSION = '0.7.0';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const urlParams = new URLSearchParams(location.search);
@@ -1305,6 +1306,11 @@ async function importBackup(file) {
   if (authState.mode && authState.mode !== MODE.GUEST && Auth.getSession() === null) {
     throw new Error('请先解锁账户再导入备份');
   }
+  await applyBackupPayload(payload);
+}
+
+async function applyBackupPayload(payload) {
+  if (!payload || !payload.version) throw new Error('不是有效的备份文件');
   const currentProfile = await ensureProfile();
   const local = await Storage.getBackupData();
   const localPets = await Pets.getState();
@@ -1345,6 +1351,11 @@ async function importBackup(file) {
     await Storage.setProfile(currentProfile);
   }
 
+  // 恢复 identity（昵称 / 头像），仅在非 userId 冲突时覆盖，避免串号
+  if (!mismatch && payload.identity && typeof payload.identity === 'object') {
+    try { await Storage.setGlobal(IDENTITY_STORE_KEY, payload.identity); } catch { /* ignore */ }
+  }
+
   const candidateActiveId = mergedTasks.some((task) => sameId(task.id, payload.activeTaskId))
     ? payload.activeTaskId
     : (mergedTasks.find((task) => task.currentIndex < task.steps.length)?.id || null);
@@ -1361,6 +1372,203 @@ async function importBackup(file) {
   await updateTeamBellBadge();
   currentTask = candidateActiveId ? mergedTasks.find((task) => sameId(task.id, candidateActiveId)) || null : null;
   flash(mismatch ? '已导入备份（保留当前用户 ID）' : '备份导入完成');
+}
+
+// ---------------------------------------------------------------------------
+// v0.7.0 · 端到端加密备份（备份短语 + AES-GCM）
+// 短语明文永不落盘：只在 modal 显示一次；storage 里仅存 mnemonicHash(SHA-256)。
+// ---------------------------------------------------------------------------
+const MNEMONIC_HASH_KEY = 'lsk_backup_mnemonic_hash_v1';
+let pendingMnemonic = null;          // 生成后短暂驻留内存；用户勾选"已保存"后清除
+let phraseModalSubmit = null;        // 短语输入弹窗的提交回调
+
+async function getStoredMnemonicHash() {
+  try {
+    const v = await Storage.getGlobal(MNEMONIC_HASH_KEY);
+    return typeof v === 'string' && v.length === 64 ? v : '';
+  } catch {
+    return '';
+  }
+}
+
+async function hasBackupMnemonic() {
+  return !!(await getStoredMnemonicHash());
+}
+
+function downloadTextFile(text, filename, mime = 'text/plain') {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// 收集全部本地数据（tasks / pets / stats / dailyLog / feedLog / team / settings / identity）
+async function collectFullBackupData() {
+  const profile = await ensureProfile();
+  const identity = await getIdentity().catch(() => ({}));
+  const backup = await Storage.getBackupData();
+  const pets = await Pets.getState();
+  const activeTaskId = await Storage.getActiveTaskId();
+  return {
+    version: APP_VERSION,
+    exportedAt: Date.now(),
+    userId: profile.userId,
+    profile,
+    identity,
+    activeTaskId,
+    ...backup, // settings / tasks / history / stats(含 dailyLog) / recentBreakdowns / teamSelf / teamState / syncEnabled
+    pets,      // 含 feedLog
+  };
+}
+
+function renderMnemonicModal(words) {
+  const grid = $('#mnemonic-grid');
+  grid.innerHTML = '';
+  words.forEach((w) => {
+    const li = document.createElement('li');
+    li.textContent = w;
+    grid.appendChild(li);
+  });
+  const check = $('#mnemonic-saved-check');
+  const done = $('#btn-mnemonic-done');
+  check.checked = false;
+  done.disabled = true;
+  $('#mnemonic-modal').classList.remove('hidden');
+}
+
+function closeMnemonicModal() {
+  $('#mnemonic-modal').classList.add('hidden');
+  $('#mnemonic-grid').innerHTML = '';
+}
+
+async function generateBackupMnemonic() {
+  const existing = await hasBackupMnemonic();
+  if (existing) {
+    const proceed = typeof confirm === 'function'
+      ? confirm('已有一套备份短语。重新生成后，用旧短语加密的备份将无法再导入。确定要换一套吗？')
+      : true;
+    if (!proceed) return;
+  }
+  pendingMnemonic = CryptoBackup.generateMnemonic(14);
+  renderMnemonicModal(pendingMnemonic.split(' '));
+}
+
+// 打开短语输入弹窗（导入 / 导出复用）
+function openPhraseModal({ title, label, onSubmit }) {
+  $('#phrase-modal-title').textContent = title;
+  $('#phrase-modal-label').textContent = label;
+  $('#phrase-input').value = '';
+  const err = $('#phrase-error');
+  err.classList.add('hidden');
+  err.textContent = '';
+  phraseModalSubmit = onSubmit;
+  $('#phrase-modal').classList.remove('hidden');
+  setTimeout(() => $('#phrase-input').focus(), 50);
+}
+
+function closePhraseModal() {
+  $('#phrase-modal').classList.add('hidden');
+  phraseModalSubmit = null;
+}
+
+function showPhraseError(message) {
+  const err = $('#phrase-error');
+  err.textContent = message;
+  err.classList.remove('hidden');
+}
+
+// 导出加密备份：要求输入短语并校验 hash 匹配后加密下载
+async function exportEncryptedBackup() {
+  const storedHash = await getStoredMnemonicHash();
+  if (!storedHash) {
+    flash('请先生成备份短语', { big: true });
+    return;
+  }
+  openPhraseModal({
+    title: '📤 导出加密备份',
+    label: '输入你的 14 词备份短语以加密全部数据',
+    onSubmit: async (phrase) => {
+      if (!CryptoBackup.validateMnemonic(phrase)) {
+        showPhraseError('短语格式不对：需要 14 个词，且都在词表内');
+        return;
+      }
+      const inputHash = await CryptoBackup.mnemonicHash(phrase);
+      if (inputHash !== storedHash) {
+        showPhraseError('这句短语和你生成的那套不一致');
+        return;
+      }
+      const data = await collectFullBackupData();
+      const blob = await CryptoBackup.encryptWithMnemonic(data, phrase);
+      const file = {
+        app: 'lazy-sheep-king',
+        format: 'lsk-e2e-backup',
+        version: APP_VERSION,
+        exportedAt: Date.now(),
+        wordCount: 14,
+        ...blob, // v / alg / iv / ct / salt
+      };
+      const datePart = new Date().toISOString().slice(0, 10);
+      downloadTextFile(JSON.stringify(file, null, 2), `lazy-sheep-king-${datePart}.lsk-backup`, 'application/octet-stream');
+      closePhraseModal();
+      flash('已导出加密备份 🔐');
+    },
+  });
+}
+
+// 导入加密备份：读文件 → 输入短语 → 解密 → 应用
+async function importEncryptedBackup(file) {
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    throw new Error('文件损坏或不是有效的加密备份');
+  }
+  if (!parsed || parsed.format !== 'lsk-e2e-backup' || !parsed.ct || !parsed.iv) {
+    throw new Error('这不是懒羊羊大王的加密备份文件');
+  }
+  openPhraseModal({
+    title: '📥 导入加密备份',
+    label: '输入导出时用的 14 词备份短语以解密',
+    onSubmit: async (phrase) => {
+      if (!CryptoBackup.validateMnemonic(phrase)) {
+        showPhraseError('短语格式不对：需要 14 个词，且都在词表内');
+        return;
+      }
+      let payload;
+      try {
+        payload = await CryptoBackup.decryptWithMnemonic(parsed, phrase);
+      } catch {
+        showPhraseError('解密失败：短语不正确，或文件已损坏');
+        return;
+      }
+      try {
+        await applyBackupPayload(payload);
+      } catch (error) {
+        showPhraseError(`导入失败：${error.message || error}`);
+        return;
+      }
+      closePhraseModal();
+    },
+  });
+}
+
+async function renderE2eBackupCard() {
+  const has = await hasBackupMnemonic();
+  const exportBtn = $('#btn-export-encrypted');
+  const status = $('#e2e-backup-status');
+  if (!exportBtn || !status) return;
+  if (has) {
+    exportBtn.classList.remove('hidden');
+    status.textContent = '已生成备份短语 ✅ 现在可以导出/导入加密备份。短语请妥善保管，我们不保存明文。';
+  } else {
+    exportBtn.classList.add('hidden');
+    status.textContent = '请先生成备份短语，再导出加密备份。短语只在本机、只显示一次，务必抄好——丢了就无法恢复。';
+  }
 }
 
 function initialAvatar(name) {
@@ -1639,6 +1847,7 @@ async function renderMyView() {
   renderFreeAiWizard();
   await renderDiagPanel(settings);
   await updateAiNudge(settings, tier);
+  await renderE2eBackupCard();
 }
 
 async function enterMyView() {
@@ -2162,6 +2371,70 @@ $('#backup-file-input').addEventListener('change', async (event) => {
   } finally {
     event.target.value = '';
   }
+});
+
+// v0.7.0 · 端到端加密备份交互
+$('#btn-gen-mnemonic').addEventListener('click', () => { generateBackupMnemonic().catch((e) => flash(`生成失败：${e.message || e}`)); });
+$('#btn-export-encrypted').addEventListener('click', () => { exportEncryptedBackup().catch((e) => flash(`导出失败：${e.message || e}`, { big: true })); });
+$('#btn-import-encrypted').addEventListener('click', () => $('#e2e-import-file-input').click());
+$('#e2e-import-file-input').addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    await importEncryptedBackup(file);
+  } catch (error) {
+    flash(`导入失败：${error.message || error}`, { big: true, duration: 2400 });
+  } finally {
+    event.target.value = '';
+  }
+});
+
+// 备份短语弹窗：复制 / 下载 / 勾选"已保存"后才能关闭
+$('#btn-copy-mnemonic').addEventListener('click', async () => {
+  if (!pendingMnemonic) return;
+  const ok = await copyText(pendingMnemonic);
+  flash(ok ? '已复制到剪贴板' : '复制失败，请手动抄写');
+});
+$('#btn-download-mnemonic').addEventListener('click', () => {
+  if (!pendingMnemonic) return;
+  const words = pendingMnemonic.split(' ');
+  const numbered = words.map((w, i) => `${String(i + 1).padStart(2, '0')}. ${w}`).join('\n');
+  const content = `懒羊羊大王 · 备份短语（请妥善保管，切勿泄露）\n生成时间：${new Date().toLocaleString()}\n\n${numbered}\n\n提示：导入加密备份时按顺序输入这 14 个词（空格分隔）即可。丢失后无法恢复。`;
+  downloadTextFile(content, `lazy-sheep-king-recovery-phrase-${new Date().toISOString().slice(0, 10)}.txt`);
+  flash('备份短语已下载');
+});
+$('#mnemonic-saved-check').addEventListener('change', (event) => {
+  $('#btn-mnemonic-done').disabled = !event.target.checked;
+});
+$('#btn-mnemonic-done').addEventListener('click', async () => {
+  if (!$('#mnemonic-saved-check').checked || !pendingMnemonic) return;
+  try {
+    const hash = await CryptoBackup.mnemonicHash(pendingMnemonic);
+    await Storage.setGlobal(MNEMONIC_HASH_KEY, hash);
+  } catch (error) {
+    flash(`保存校验失败：${error.message || error}`);
+    return;
+  }
+  pendingMnemonic = null; // 清除内存中的明文短语
+  closeMnemonicModal();
+  await renderE2eBackupCard();
+  flash('备份短语已就绪，可以导出加密备份啦 🔐');
+});
+
+// 短语输入弹窗（导入 / 导出复用）
+$('#btn-phrase-submit').addEventListener('click', async () => {
+  const phrase = $('#phrase-input').value;
+  if (typeof phraseModalSubmit === 'function') {
+    try {
+      await phraseModalSubmit(phrase);
+    } catch (error) {
+      showPhraseError(`操作失败：${error.message || error}`);
+    }
+  }
+});
+$('#btn-phrase-close').addEventListener('click', closePhraseModal);
+$('#phrase-modal').addEventListener('click', (event) => {
+  if (event.target === $('#phrase-modal')) closePhraseModal();
 });
 $('#team-snapshot-file-input').addEventListener('change', async (event) => {
   const file = event.target.files?.[0];
