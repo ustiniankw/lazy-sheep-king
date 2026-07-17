@@ -501,6 +501,29 @@
           <button id="btn-sync-toggle" class="ios-btn ios-btn-secondary block">🔄 启用跨设备同步（Chrome 账号）</button>
         </div>
 
+        <div class="my-card" id="cloud-sync-card">
+          <div class="my-card-title">
+            ☁️ 云同步
+            <span id="cloud-sync-light" class="cloud-light" title="状态">🔴</span>
+          </div>
+          <div class="my-card-sub">开启后队伍进度会经 Cloudflare Workers 中转；单机使用无需开启。</div>
+          <div class="my-actions-grid" style="margin-top:8px;">
+            <label class="cloud-toggle-row" for="cloud-sync-toggle">
+              <span>启用云同步</span>
+              <input type="checkbox" id="cloud-sync-toggle" />
+            </label>
+          </div>
+          <label class="modal-label" for="cloud-backend-url" style="margin-top:8px;">自建服务器地址（留空用默认）</label>
+          <div class="team-sync-row">
+            <input id="cloud-backend-url" placeholder="https://lsk-sync.你的用户名.workers.dev" />
+            <button id="btn-cloud-save-url" class="ios-btn small ios-btn-primary">保存</button>
+          </div>
+          <div class="my-actions-grid" style="margin-top:8px;">
+            <button id="btn-cloud-test" class="ios-btn small ios-btn-secondary">🔌 测试连接</button>
+          </div>
+          <div class="my-card-sub" id="cloud-sync-status">未启用</div>
+        </div>
+
         <div class="my-card">
           <div class="my-card-title">🖥 桌面显示</div>
           <div class="my-card-sub">在大屏（≥1024px）时的布局方式</div>
@@ -527,6 +550,11 @@
             <button id="btn-export-encrypted" class="ios-btn small ios-btn-secondary hidden">📤 导出加密备份</button>
             <button id="btn-import-encrypted" class="ios-btn small ios-btn-secondary">📥 导入加密备份</button>
           </div>
+          <div class="my-actions-grid" id="cloud-vault-actions" style="margin-top:8px;">
+            <button id="btn-cloud-upload-vault" class="ios-btn small ios-btn-secondary hidden">☁️ 上传到云端</button>
+            <button id="btn-cloud-restore-vault" class="ios-btn small ios-btn-secondary hidden">☁️ 从云端恢复</button>
+          </div>
+          <div class="my-card-sub hidden" id="cloud-vault-hint">开启云同步后：上传会把加密备份存到云端；换设备时只需输入 14 词短语即可「从云端恢复」全部数据，无需扫码。</div>
           <input id="e2e-import-file-input" type="file" accept=".lsk-backup,application/json,.json" style="display:none" />
         </div>
 

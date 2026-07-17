@@ -1,0 +1,14 @@
+name = "lsk-sync"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+# KV 命名空间：用户执行 `wrangler kv namespace create LSK_KV` 后，
+# 把返回的 id 粘到下面的 id 字段（替换 REPLACE_WITH_YOUR_KV_ID）。
+[[kv_namespaces]]
+binding = "KV"
+id = "REPLACE_WITH_YOUR_KV_ID"
+
+[vars]
+# CORS 白名单（逗号分隔）。默认允许 GitHub Pages 与本地 wrangler dev。
+# 需要允许 Aime 预览域名时，把预览域名追加进来即可。
+CORS_ORIGINS = "https://ustiniankw.github.io,http://localhost:8787"

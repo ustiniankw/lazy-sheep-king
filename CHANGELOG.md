@@ -1,5 +1,54 @@
 # CHANGELOG
 
+## v0.8.0 — Cloudflare Workers 后端 + 可选云同步（2026-07-17）
+
+> 主功能：**一个可部署的 Cloudflare Workers 后端（免费 tier · KV-only）** + **前端可选云同步**（默认关闭，关闭时 100% 走本地存储，行为完全不变）。测试全绿。
+
+### ✨ 新增 · Cloudflare Workers 后端（`worker/`）
+
+- **`worker/src/index.js`（新增）** — 单文件 Worker，原生 `fetch` handler + 手写路由，**零外部依赖**。统一 JSON 响应 + CORS 头 + 轻量速率限制（每 IP 每分钟 60 次，KV 计数 `rl:<ip>:<minute>` TTL 90s，超出返回 429）。
+  - **队伍**：`POST /v1/team/create`（生成 6 位队伍码，避开易混淆字符 `0/O/1/I/L`）、`POST /v1/team/:code/join`、`GET /v1/team/:code`（Bearer token 校验）、`POST /v1/team/:code/heartbeat`、`POST /v1/team/:code/poke`（保留最近 20 条）、`POST /v1/team/:code/leave`、`DELETE /v1/team/:code`（仅队长 token）。
+  - **E2E 加密 vault**：`PUT /v1/vault/:vaultId`（首次带 `newVaultToken` 建立所有权，之后校验 token）、`GET /v1/vault/:vaultId`、`DELETE /v1/vault/:vaultId`。服务端**只存密文、永不解密**。
+  - **健康**：`GET /v1/health` → `{ ok: true, version: '0.8.0' }`。
+  - **错误码**：400 校验失败 / 401 token 无效 / 404 不存在 / 409 队伍码冲突（重试生成）/ 429 速率限制 / 500 兜底。
+- **`worker/wrangler.toml`** — `name = lsk-sync`、`main = src/index.js`、`compatibility_date = 2025-06-01`、`[[kv_namespaces]]` binding `KV`（创建命令用 `LSK_KV`，`id` 留 placeholder）、`[vars] CORS_ORIGINS`。
+- **`worker/package.json`** — 仅 `wrangler` devDependency（用户可选装）。
+- **`worker/README.md`** — 5 步部署指南 + curl 冒烟测试 + API 一览。
+- **`worker/.dev.vars.example`** — 本地 dev 变量样例。
+
+### ✨ 新增 · 前端可选云同步
+
+- **`lib/sync_config.js`（新增）** — `DEFAULT_BACKEND_URL`（用户 deploy 后填入 workers.dev URL，为空则 fallback 本地）、`API_VERSION_PATH`。
+- **`lib/sync_client.js`（新增，纯函数）** — 导出 `createTeam / joinTeam / getTeam / heartbeat / poke / leaveTeam / putVault / getVault / deleteVault / pingHealth`；每个函数拿到空 `backendUrl` 立即抛 `SyncDisabledError`；网络错误自动重试 1 次；每次请求 6s 超时；HTTP 错误抛 `SyncHttpError`（不重试）。
+- **`lib/crypto_backup.js`** 新增 `deriveVaultId(mnemonic)` = `SHA-256(mnemonic + 'vault-v1').slice(0,32)`、`deriveVaultToken(mnemonic)` = `SHA-256(mnemonic + 'auth-v1').slice(0,32)`。用户只凭 14 词短语即可在新设备稳定重算 vaultId/vaultToken，从而「找到」并解密云端 blob，无需扫码。
+- **「我的」页新增「☁️ 云同步」卡片**：开关（默认关）、自建服务器地址（只读展示 / 可覆盖默认）、「🔌 测试连接」（调 `/v1/health`）、状态灯（🟢 已连 / 🟡 检查中 / 🔴 未启用/失败）、小字「开启后队伍进度会经 Cloudflare Workers 中转；单机使用无需开启」。
+- **「🔐 备份与恢复」卡片**：云同步 ON + 已有短语时，暴露「☁️ 上传到云端」「☁️ 从云端恢复」。**用户只需 14 词短语 + 云同步开启，即可跨设备恢复全部数据。**
+- **Team 页改造**：`settings.cloudSyncEnabled && backendUrl 已配置` 时创建/加入/拍一拍走 Worker，30s 心跳上报 snapshot（进度 / 心情 / 当前任务标题）+ 30s 拉队伍状态；否则完全走**现有本地 mock**（向后兼容）。云端队伍快照 ↔ 本地 `teamState` 结构做转换以复用既有 UI。
+
+### 🔧 存储 & 设置
+
+- `lib/storage.js` settings 新增 `cloudSyncEnabled: false`、`backendUrl: DEFAULT_BACKEND_URL || null`；`teamSelf` 新增 `cloudToken` / `cloudMemberId`。用户可在设置里覆盖 `backendUrl`（空则用默认）。
+
+### 🔧 版本 & 缓存
+
+- `manifest.json` → `0.8.0`；`popup/popup.js` `APP_VERSION` → `0.8.0`。
+- `service-worker.js` `CACHE_NAME` → `lsk-cache-v0.8.0`；`APP_SHELL` 新增 `./lib/sync_client.js` + `./lib/sync_config.js`。
+- `index.html` 页脚版本号 → `v0.8.0`（**落地页保持极简，未加任何 v0.8 亮点区块 / 新功能红点**）。
+- `options/options.html` 版本文案 → `0.8.0`。
+- `tests/pwa.test.mjs` 断言从 `lsk-cache-v0.7.0` 更新到 `lsk-cache-v0.8.0`。
+
+### 🧪 测试
+
+- **`tests/sync_client.test.mjs`（新增）** — mock `globalThis.fetch`，覆盖 createTeam/joinTeam/getTeam/heartbeat/poke/leaveTeam、vault put+get+delete、health、HTTP 错误不重试、网络错误重试、超时（AbortError）模拟、`SyncDisabledError`。
+- **`tests/worker.test.mjs`（新增）** — 内存版 KV mock 直接驱动 Worker `fetch` handler（无需 miniflare）：队伍全流程 create→join→get→heartbeat→poke→leave→delete、vault 全流程、CORS 白名单、队伍码字符集、速率限制 429、未知路由 404、KV 未绑定兜底。
+- **`tests/crypto_backup.test.mjs`** 补充 vault 派生测例。
+- 现有测试全绿。
+
+### 🚀 部署说明
+
+我们**不执行** `wrangler deploy`（无 Cloudflare 凭据）——仅交付完整代码 + 部署指南。用户 5 分钟自助部署：
+`cd worker` → `npm i -g wrangler` → `wrangler login` → `wrangler kv namespace create LSK_KV` → 把 id 填进 `wrangler.toml` → `wrangler deploy` → 拿到 workers.dev URL → 填到 `lib/sync_config.js` 的 `DEFAULT_BACKEND_URL` → 再 push 一次。详见 `worker/README.md`。
+
 ## v0.7.0 — 端到端加密备份 + 手机端修复（2026-07-17）
 
 > 主功能：**备份短语（助记词）+ 端到端加密备份**，全程离线、零后端。同时修复两个手机端体验 Bug。**测试全绿（75 subtest）。**
@@ -640,3 +689,4 @@
 - 输入任务 → 本地兜底拆解 → 分步执行（撒彩带 + Web Audio 音效）→ 完成页统计
 - 快捷键 `Alt + L`、大屏模式、设置页数据管理
 - 实验性 LLM 通道（v1 正式化）
+

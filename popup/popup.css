@@ -1038,6 +1038,11 @@ body.full .ios-main { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset
 .my-label { color: var(--text-secondary); }
 .my-row code { font-family: 'SF Mono', ui-monospace, monospace; background: var(--surface-bg); padding: 2px 8px; border-radius: 6px; font-size: 12px; }
 
+/* v0.8.0 · 云同步卡片 */
+.cloud-light { font-size: 12px; margin-left: 6px; vertical-align: middle; }
+.cloud-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; padding: 6px 10px; border: 1px solid var(--separator); border-radius: 8px; grid-column: 1 / -1; }
+.cloud-toggle-row input[type="checkbox"] { width: 18px; height: 18px; }
+
 .account-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .account-actions .ios-btn, .account-actions .btn { width: 100%; }
 
