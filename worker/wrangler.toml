@@ -4,8 +4,11 @@ compatibility_date = "2025-06-01"
 
 # KV 命名空间：用户执行 `wrangler kv namespace create LSK_KV` 后，
 # 把返回的 id 粘到下面的 id 字段（替换 REPLACE_WITH_YOUR_KV_ID）。
+# 注意：Worker 代码同时兼容 `KV` 与 `LSK_KV` 两种 binding 变量名
+#（见 src/index.js 的 resolveKv），因此在 Cloudflare Dashboard 手动
+# 绑定时，变量名填 KV 或 LSK_KV 均可，无需再新增一个绑定。
 [[kv_namespaces]]
-binding = "KV"
+binding = "LSK_KV"
 id = "REPLACE_WITH_YOUR_KV_ID"
 
 [vars]

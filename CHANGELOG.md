@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## v0.8.5 — 兼容 KV / LSK_KV 双 binding 名（2026-07-17）
+
+### 🐛 修复 · 创建队伍报错 `500 kv_unbound`
+
+> **根因**：Worker 代码只读取 `env.KV`，但用户在 Cloudflare Dashboard 上的 KV binding 变量名是 `LSK_KV`，导致 `resolveKv` 前的 `env.KV` 恒为 undefined，创建队伍时返回 `500 {"error":"kv_unbound"}`。
+
+- **Worker 现在同时接受 KV / LSK_KV 两种 binding 名，修复 kv_unbound 报错。** 新增 `resolveKv(env)` 助手（`env.KV || env.LSK_KV || null`），全文所有 KV 读写改为经由该助手解析出的 `kv` 实例，行为保持不变。
+- **错误提示优化**：`kv_unbound` 的用户可见提示由「请在 wrangler.toml 配置 [[kv_namespaces]]」改为「请在 Cloudflare Dashboard 绑定 KV Namespace（变量名 KV 或 LSK_KV）」，更贴合手动部署场景。
+- **wrangler.toml**：主 binding 名改为 `LSK_KV`（对齐用户账号现状），并注明 Worker 亦兼容 `KV`。
+- Worker 通过 Cloudflare Dashboard 手动粘贴部署，需重贴的文件为 `worker/src/index.js`。
+
+### 🔧 版本
+
+- `manifest.json` → `0.8.5`；`popup/popup.js` `APP_VERSION` → `0.8.5`；`service-worker.js` CACHE_NAME → `lsk-cache-v0.8.5`；`index.html` 页脚 → `v0.8.5`；Worker `VERSION` → `0.8.5`。
+
 ## v0.8.4 — 两个用户实测 Bug 修复（2026-07-17）
 
 ### 🐛 Bug A（关键）· 创建队伍失败："网络不好，请重试"
