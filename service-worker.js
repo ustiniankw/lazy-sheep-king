@@ -1,5 +1,5 @@
-// service-worker.js — v0.6.0 PWA cache（认证瘦身 + 落地页）
-const CACHE_NAME = 'lsk-cache-v0.6.0';
+// service-worker.js — v0.7.0 PWA cache（加密备份 + 手机端修复）
+const CACHE_NAME = 'lsk-cache-v0.7.0';
 
 const APP_SHELL = [
   './',
@@ -22,6 +22,8 @@ const APP_SHELL = [
   './lib/user_id.js',
   './lib/layout.js',
   './lib/pwa_update.js',
+  './lib/crypto_backup.js',
+  './lib/wordlist.js',
   './icons/icon-16.png',
   './icons/icon-32.png',
   './icons/icon-48.png',

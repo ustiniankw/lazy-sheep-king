@@ -519,6 +519,17 @@
           </div>
         </div>
 
+        <div class="my-card" id="e2e-backup-card">
+          <div class="my-card-title">🔐 备份与恢复（端到端加密）</div>
+          <div class="my-card-sub" id="e2e-backup-status">用一句 14 词备份短语，把你的全部本地数据端到端加密后导出。短语只在本机、只显示一次，务必抄好——丢了就无法恢复。</div>
+          <div class="my-actions-grid">
+            <button id="btn-gen-mnemonic" class="ios-btn small ios-btn-primary">🔑 生成备份短语</button>
+            <button id="btn-export-encrypted" class="ios-btn small ios-btn-secondary hidden">📤 导出加密备份</button>
+            <button id="btn-import-encrypted" class="ios-btn small ios-btn-secondary">📥 导入加密备份</button>
+          </div>
+          <input id="e2e-import-file-input" type="file" accept=".lsk-backup,application/json,.json" style="display:none" />
+        </div>
+
         <div class="my-card">
           <div class="my-card-title">📦 备份与恢复</div>
           <div class="my-actions-grid">
@@ -635,6 +646,44 @@
           <button id="btn-pp-submit" class="ios-btn ios-btn-primary big block" style="margin-top:12px">🔐 创建本地密码账号</button>
           <div class="modal-note">本地密码仅在本机派生备份加密密钥；不联网、不上传、不用于任何身份验证。</div>
         </div>
+      </div>
+    </div>
+
+    <!-- 🔐 备份短语展示弹窗（只显示一次） -->
+    <div id="mnemonic-modal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <div class="modal-head">
+          <div class="modal-title">🔐 你的备份短语（14 词）</div>
+        </div>
+        <div class="modal-note" style="margin-top:0">
+          这 14 个词就是你加密备份的唯一钥匙。请<b>立刻抄写或保存</b>到安全的地方（如密码管理器）。
+          它<b>只显示这一次</b>，我们不会保存明文；丢失后加密备份将无法恢复。
+        </div>
+        <ol id="mnemonic-grid" class="mnemonic-grid"></ol>
+        <div class="mnemonic-actions">
+          <button id="btn-copy-mnemonic" class="ios-btn small ios-btn-secondary">📋 一键复制</button>
+          <button id="btn-download-mnemonic" class="ios-btn small ios-btn-secondary">⬇ 下载 txt</button>
+        </div>
+        <label class="mnemonic-confirm">
+          <input type="checkbox" id="mnemonic-saved-check" />
+          我已把这 14 词安全保存好，明白丢失将无法恢复
+        </label>
+        <button id="btn-mnemonic-done" class="ios-btn ios-btn-primary big block" style="margin-top:12px" disabled>完成</button>
+      </div>
+    </div>
+
+    <!-- 🔐 导入 / 导出 输入短语弹窗 -->
+    <div id="phrase-modal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <div class="modal-head">
+          <div class="modal-title" id="phrase-modal-title">输入备份短语</div>
+          <button id="btn-phrase-close" class="ios-icon-btn" title="关闭">✕</button>
+        </div>
+        <label class="modal-label" id="phrase-modal-label">请输入你的 14 词备份短语（空格分隔）</label>
+        <textarea id="phrase-input" class="modal-input" rows="3" placeholder="例如：apple river ..." style="resize:vertical"></textarea>
+        <div class="modal-error hidden" id="phrase-error"></div>
+        <button id="btn-phrase-submit" class="ios-btn ios-btn-primary big block" style="margin-top:12px">确认</button>
+        <div class="modal-note">短语只在本机内存中用于派生 AES-GCM 密钥；不联网、不上传。</div>
       </div>
     </div>
   </div>
