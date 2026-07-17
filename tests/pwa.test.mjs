@@ -60,7 +60,7 @@ describe('service-worker.js exists', () => {
   it('file can be read', () => {
     const swPath = resolve(__dirname, '..', 'service-worker.js');
     const content = readFileSync(swPath, 'utf-8');
-    assert.ok(content.includes('lsk-cache-v0.8.0'));
+    assert.ok(content.includes('lsk-cache-v0.8.2'));
     assert.ok(content.includes('install'));
     assert.ok(content.includes('activate'));
     assert.ok(content.includes('fetch'));

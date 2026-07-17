@@ -308,7 +308,7 @@
     </section>
 
     <footer class="foot">
-      <span>© 2026 懒羊羊大王 · <span id="foot-version">v0.8.0</span></span>
+      <span>© 2026 懒羊羊大王 · <span id="foot-version">v0.8.2</span></span>
       <span>
         <a href="https://github.com/ustiniankw/lazy-sheep-king" target="_blank" rel="noopener">GitHub</a>
         <a href="https://github.com/ustiniankw/lazy-sheep-king/issues" target="_blank" rel="noopener">意见反馈</a>
@@ -319,6 +319,21 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script>
+    // ---------------------- v0.8.2 · 组队分享链接转发 ----------------------
+    // 访问 https://.../?join=XXXXXX 时，把队伍码带进 App 并自动跳转组队页
+    (function forwardJoinCode() {
+      try {
+        const join = new URLSearchParams(location.search).get('join');
+        const code = String(join || '').trim().toUpperCase();
+        if (!/^[0-9A-Z]{6}$/.test(code)) return;
+        const target = `popup/popup.html?full=1&pwa=1&view=team&join=${encodeURIComponent(code)}`;
+        const cta = document.getElementById('cta-start');
+        if (cta) cta.href = target;
+        // 自动跳转，减少一次点击
+        location.replace(target);
+      } catch (_) { /* noop */ }
+    })();
+
     // ---------------------- PWA install prompt ----------------------
     let deferredPrompt = null;
     const installBtn = document.getElementById('cta-install');

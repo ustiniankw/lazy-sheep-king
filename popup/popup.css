@@ -975,6 +975,37 @@ body.full .ios-main { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset
 .team-setting-row select { padding: 6px 8px; border: 1px solid var(--separator); border-radius: 8px; background: var(--surface-bg); color: var(--text-primary); font-size: 12px; }
 .team-muted { font-size: 11px; color: var(--text-tertiary); margin-top: 6px; }
 
+/* ==================== v0.8.2 · 云端组队（Worker 版）==================== */
+.team-badge-row { display: flex; justify-content: center; margin-bottom: 10px; }
+.team-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 999px; }
+.team-badge.cloud { background: rgba(52,199,89,0.14); color: #248a3d; }
+.team-badge.checking { background: rgba(255,204,0,0.16); color: #a67c00; }
+.team-badge.offline { background: rgba(142,142,147,0.16); color: var(--text-secondary); }
+
+.team-hero { text-align: center; padding: 20px 16px; }
+.team-big-actions { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
+.team-big-btn { width: 100%; padding: 14px; font-size: 16px; font-weight: 700; border-radius: 14px; }
+.team-join-block { margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--separator); }
+.team-join-hint { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+.team-join-row { display: flex; gap: 8px; }
+.team-join-row input { flex: 1; padding: 10px 12px; border: 1px solid var(--separator); border-radius: 10px; font-size: 16px; letter-spacing: 3px; text-align: center; text-transform: uppercase; background: var(--surface-bg); color: var(--text-primary); }
+
+.team-code-card { text-align: center; }
+.team-code-label { font-size: 12px; color: var(--text-secondary); }
+.team-code-big { font-size: 40px; font-weight: 800; letter-spacing: 8px; margin: 6px 0 12px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.team-code-actions { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+.team-share-hint { font-size: 11px; color: var(--text-tertiary); word-break: break-all; }
+.team-share-url { color: var(--accent, #007AFF); }
+.team-meta-line { display: flex; gap: 12px; justify-content: center; font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+
+.team-poke-banner { text-align: center; font-size: 13px; font-weight: 600; color: #a67c00; background: rgba(255,204,0,0.12); }
+
+.team-avatar { flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; font-weight: 700; }
+.team-member-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+.team-poke-btn { align-self: center; flex-shrink: 0; }
+.team-leave-btn { color: #ff3b30; }
+
+
 /* ==================== My / Profile view ==================== */
 .account-card {
   background: var(--surface-card);

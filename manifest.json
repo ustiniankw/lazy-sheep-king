@@ -3,7 +3,7 @@
   "name": "懒羊羊大王 · 执行力助手",
   "short_name": "懒羊羊大王",
   "description": "把大任务拆成超简单的小步骤，每完成一步都有懒羊羊的鼓励～ 一步一步征服拖延症！",
-  "version": "0.8.0",
+  "version": "0.8.2",
   "author": "夏凯文",
   "action": {
     "default_title": "打开懒羊羊大王",

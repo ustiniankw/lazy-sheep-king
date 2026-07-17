@@ -1,6 +1,40 @@
 # CHANGELOG
 
+## v0.8.2 — 组队真正连到 Worker · 拉齐真云端（2026-07-17）
+
+> **根因**：组队页 UI 一直停留在 v0.7 之前的「本地 mock / 手动快照 / JSONBin URL 同步」形态，队伍码由本地随机生成、成员数永远是 1，从未接上 v0.8 的 Cloudflare Worker（`DEFAULT_BACKEND_URL` 已生产可用）。本次把组队页 UI 层彻底接到 Worker。
+
+### ✨ 组队页重写为 Worker 版（`popup/`）
+
+- **默认走云端**：只要 `DEFAULT_BACKEND_URL` 非空且 `/v1/health` 通过，组队自动走 Worker，**无需在「我的」页手动开云同步**；Worker 不可用时静默回退本地 mock。
+- **动态状态徽标**：`🟢 云端已连接` / `🟡 连接中…` / `⚪️ 离线模式（本地）`（60s 健康探测缓存）。
+- **落地页**：无队伍时展示【创建队伍】大按钮 + 队伍码输入框加入。
+  - 创建 → `POST /v1/team/create`，展示 6 位队伍码（大字号 + 复制 + 分享链接 `https://ustiniankw.github.io/lazy-sheep-king/?join=<code>`）。
+  - 加入 → `POST /v1/team/:code/join`。
+- **队伍看板**：队伍码卡 + 复制/分享；队友列表 `GET /v1/team/:code` **每 15s 自动刷新**、**页面 focus 立即刷新**；**每 30s heartbeat** 上报 active task 标题 / 进度 % / 心情；`👊 拍一拍` → `/poke`；`🚪 退出队伍` → `/leave`。虚拟头像（首字母 + 稳定配色）。
+- **URL 自动加入**：`?join=E36500` 自动填入并弹「是否加入队伍 E36500?」；`index.html` 落地页也会把 `?join=` 转发进 App。
+- **成员 ID 稳定**：每设备一个 `memberId = hash(deviceId||uuid)`（FNV-1a），同设备重进不重复注册。
+- **token 持久化**：create/join 返回的 token 存 settings（`teamCode`/`teamToken`/`teamMemberId`/`teamPokeSeenTs`），刷新不需重新 create/join；退出时清空。
+- **友好错误**：400/401/403/404/429 → 「队伍码错误」「队伍已满」「太频繁了，稍等一下」「网络不好，请重试」等中文 toast。
+- **删除旧 UI**：移除 JSONBin.io / npoint.io URL 同步控件、手动快照导出/导入 DOM。
+- **「我的」页**：云同步开关默认「自动」（有 Worker URL 即 ON），文案改为「云端组队（连接到官方服务器）」。
+
+### 🧱 库层
+
+- **`lib/team.js`**：新增 `deriveMemberId()` / `resolveTeamBackend()` / `parseJoinCode()` / `LocalTeamMock`（与 sync_client 语义对齐的本地兜底）/ `makeTeamFacade()`（cloud→sync_client、local→本地 mock 统一门面）。
+- **`lib/storage.js`**：settings 新增 `teamCode`/`teamToken`/`teamMemberId`/`teamPokeSeenTs`，`cloudSyncEnabled`/`backendUrl` 默认随 `DEFAULT_BACKEND_URL`；新增 `getTeamSession`/`setTeamSession`/`clearTeamSession`。
+
+### ✅ 测试
+
+- `tests/team.test.mjs`：新增覆盖 `deriveMemberId` / `resolveTeamBackend` / `parseJoinCode` / `LocalTeamMock` 全流程 / `makeTeamFacade` cloud vs local 路由 / team session helper。
+- 全量 `node --test tests/*.mjs`：**110 passed / 0 failed**。
+
+### 🔧 版本
+
+- `manifest.json` → `0.8.2`；`service-worker.js` CACHE_NAME → `lsk-cache-v0.8.2`；`index.html` 页脚 → `v0.8.2`。
+
 ## v0.8.0 — Cloudflare Workers 后端 + 可选云同步（2026-07-17）
+
 
 > 主功能：**一个可部署的 Cloudflare Workers 后端（免费 tier · KV-only）** + **前端可选云同步**（默认关闭，关闭时 100% 走本地存储，行为完全不变）。测试全绿。
 
