@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## v0.8.3 — 修复「队友」tab 点不动 / 空白（2026-07-17）
+
+> **根因**：v0.8.2 组队页重写后，`renderTeam()` / `enterTeamView()` 在把任何 UI 画进 `#team-root` 之前，`await probeTeamHealth()` 先做了一次到 Cloudflare Worker 的健康探测（`/v1/health`，6s 超时 + 1 次重试 ≈ 最长 12s）。在预览 / 无 CORS 白名单 / Worker 不可达场景下，这段网络等待会阻塞首屏渲染，导致点开「队友」后长时间空白，用户体验上就是「点不动」。
+
+### 🐛 修复
+
+- **首屏立即渲染**：新增 `paintTeamRoot()`，进入组队页时先用已知会话同步画出落地页 / 队伍码卡片，**完全不依赖网络**。
+- **健康探测后台化**：`refreshTeamInBackground()` 把 `probeTeamHealth` + 队友拉取全部移到后台，完成后再更新徽标 / 成员，绝不阻塞点击。
+- **极端兜底**：即使渲染函数抛异常，也会兜底展示「组队暂时不可用 + 手动重试」，绝不空白 / 崩溃。
+- **离线可用**：Worker 不可用 / CORS 未白名单时，落地页照常展示（⚪️ 离线模式），可创建本地队伍。
+
+### 🔧 版本
+
+- `manifest.json` → `0.8.3`；`popup/popup.js` `APP_VERSION` → `0.8.3`；`service-worker.js` CACHE_NAME → `lsk-cache-v0.8.3`；`index.html` 页脚 → `v0.8.3`。
+
 ## v0.8.2 — 组队真正连到 Worker · 拉齐真云端（2026-07-17）
 
 > **根因**：组队页 UI 一直停留在 v0.7 之前的「本地 mock / 手动快照 / JSONBin URL 同步」形态，队伍码由本地随机生成、成员数永远是 1，从未接上 v0.8 的 Cloudflare Worker（`DEFAULT_BACKEND_URL` 已生产可用）。本次把组队页 UI 层彻底接到 Worker。

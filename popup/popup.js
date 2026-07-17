@@ -29,7 +29,7 @@ import * as CryptoBackup from '../lib/crypto_backup.js';
 import * as SyncClient from '../lib/sync_client.js';
 import { DEFAULT_BACKEND_URL } from '../lib/sync_config.js';
 
-const APP_VERSION = '0.8.2';
+const APP_VERSION = '0.8.3';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const urlParams = new URLSearchParams(location.search);
@@ -1286,31 +1286,65 @@ function renderTeamDashboard({ session, members, pokesToMe }) {
   `;
 }
 
-async function renderTeam() {
+// 立即把当前已知状态画进 #team-root（不依赖任何网络）。
+// 保证「队友」tab 无论 Worker 是否可用 / CORS 是否白名单，都能点开且看到 UI。
+function paintTeamRoot(session, { members = [], pokesToMe = [] } = {}) {
+  const root = $('#team-root');
+  if (!root || currentView !== 'team') return;
+  try {
+    root.innerHTML = session?.teamCode
+      ? renderTeamDashboard({ session, members, pokesToMe })
+      : renderTeamLanding();
+  } catch (error) {
+    // 极端兜底：即使渲染函数异常，也绝不留空白 / 崩溃。
+    console.warn('[懒羊羊大王] team render failed:', error?.message || error);
+    root.innerHTML = `
+      <div class="team-card team-hero">
+        <div class="team-badge-row">${teamBadgeHtml()}</div>
+        <div class="team-empty-title">组队暂时不可用</div>
+        <div class="team-empty-sub">当前离线或网络异常，请稍后重试。</div>
+        <div class="team-big-actions">
+          <button class="btn primary team-big-btn" data-team-act="refresh">🔄 手动重试</button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+// 后台探测 Worker 健康 + 拉取队友，完成后再更新徽标 / 成员，绝不阻塞首屏渲染。
+async function refreshTeamInBackground({ force = false } = {}) {
+  await probeTeamHealth({ force }).catch(() => {});
+  if (currentView !== 'team') return;
+  const session = await Storage.getTeamSession().catch(() => ({}));
+  if (!session?.teamCode) {
+    // 无队伍：探测完成后徽标/文案可能变化，重绘落地页。
+    paintTeamRoot(session);
+    return;
+  }
+  await refreshTeamAndRender().catch((error) => {
+    console.warn('[懒羊羊大王] team refresh failed:', error?.message || error);
+  });
+}
+
+async function renderTeam({ force = false } = {}) {
   showView('team');
   const root = $('#team-root');
   if (!root) return;
-  await probeTeamHealth();
-  const session = await Storage.getTeamSession();
-  if (!session.teamCode) {
-    root.innerHTML = renderTeamLanding();
-    return;
-  }
-  // 先渲染代码卡（用上次已知成员为空的骨架），随后 refresh 填充
-  root.innerHTML = renderTeamDashboard({ session, members: [], pokesToMe: [] });
-  await refreshTeamAndRender();
+  // ① 先用已知会话即时出 UI（离线也能看到落地页 / 队伍码卡片）。
+  const session = await Storage.getTeamSession().catch(() => ({}));
+  paintTeamRoot(session, { members: [], pokesToMe: [] });
+  // ② 网络探测 + 队友刷新全部放后台，不阻塞点击体验。
+  refreshTeamInBackground({ force }).catch(() => {});
 }
 
 async function enterTeamView() {
   showView('team');
-  await renderTeam();
-  await getTeamFacade({ force: true });
-  await refreshTeamAndRender();
-  const session = await Storage.getTeamSession();
+  await renderTeam({ force: true });
+  const session = await Storage.getTeamSession().catch(() => ({}));
   if (session.teamCode) {
-    await Storage.setTeamSession({ teamPokeSeenTs: Date.now() });
-    await updateTeamBellBadge();
-    await startTeamLoops();
+    await Storage.setTeamSession({ teamPokeSeenTs: Date.now() }).catch(() => {});
+    await updateTeamBellBadge().catch(() => {});
+    await startTeamLoops().catch(() => {});
   }
 }
 
