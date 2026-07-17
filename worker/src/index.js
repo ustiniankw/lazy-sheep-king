@@ -1,4 +1,4 @@
-// worker/src/index.js — lsk-sync v0.8.5
+// worker/src/index.js — lsk-sync v0.8.6
 // 懒羊羊大王 · 云同步后端（Cloudflare Workers + KV，免费 tier）
 // 职责：
 //   1) 队伍状态（team code + 成员快照 + 拍一拍）
@@ -10,7 +10,7 @@
 //   - 轻量速率限制（每 IP 每分钟 60 次）
 //   - 端到端：vault 密文对服务端不可读；vaultToken 由前端 SHA-256 派生
 
-const VERSION = '0.8.5';
+const VERSION = '0.8.6';
 
 // KV binding 兼容：优先 env.KV，其次 env.LSK_KV。
 // 说明：Cloudflare Dashboard 手动绑定时变量名可能是 KV 或 LSK_KV，
@@ -196,12 +196,14 @@ async function issueToken(env, code, memberId) {
   return token;
 }
 
-function newMember({ memberId, nickname, avatarSeed, pubKey }) {
+function newMember({ memberId, nickname, avatarSeed, avatarUrl, avatarKind, pubKey }) {
   const ts = nowMs();
   return {
     memberId: String(memberId),
     nickname: String(nickname || '懒羊羊伙伴'),
     avatarSeed: avatarSeed ? String(avatarSeed) : '',
+    avatarUrl: avatarUrl ? String(avatarUrl) : '',
+    avatarKind: avatarKind ? String(avatarKind) : '',
     pubKey: pubKey ? String(pubKey) : undefined,
     joinedAt: ts,
     lastSeenAt: ts,
@@ -245,6 +247,8 @@ async function handleTeamCreate(request, env) {
     memberId: body.founderMemberId,
     nickname: body.founderNickname,
     avatarSeed: body.founderAvatarSeed,
+    avatarUrl: body.founderAvatarUrl,
+    avatarKind: body.founderAvatarKind,
     pubKey: body.founderPubKey,
   });
   const team = {
@@ -275,6 +279,8 @@ async function handleTeamJoin(request, env, code) {
       ...team.members[existingIdx],
       nickname: String(body.nickname || team.members[existingIdx].nickname),
       avatarSeed: body.avatarSeed ? String(body.avatarSeed) : team.members[existingIdx].avatarSeed,
+      avatarUrl: body.avatarUrl ? String(body.avatarUrl) : team.members[existingIdx].avatarUrl,
+      avatarKind: body.avatarKind ? String(body.avatarKind) : team.members[existingIdx].avatarKind,
       pubKey: body.pubKey ? String(body.pubKey) : team.members[existingIdx].pubKey,
       lastSeenAt: nowMs(),
     };
@@ -283,6 +289,8 @@ async function handleTeamJoin(request, env, code) {
       memberId: body.memberId,
       nickname: body.nickname,
       avatarSeed: body.avatarSeed,
+      avatarUrl: body.avatarUrl,
+      avatarKind: body.avatarKind,
       pubKey: body.pubKey,
     }));
   }
@@ -313,6 +321,10 @@ async function handleTeamHeartbeat(request, env, code) {
   const idx = team.members.findIndex((m) => m.memberId === String(body.memberId));
   if (idx < 0) return errorResponse(404, 'member_not_found', '成员不在队伍中', request, env);
   team.members[idx].snapshot = sanitizeSnapshot(body.snapshot);
+  if (body.nickname) team.members[idx].nickname = String(body.nickname);
+  if (body.avatarSeed) team.members[idx].avatarSeed = String(body.avatarSeed);
+  if (body.avatarUrl) team.members[idx].avatarUrl = String(body.avatarUrl);
+  if (body.avatarKind) team.members[idx].avatarKind = String(body.avatarKind);
   team.members[idx].lastSeenAt = nowMs();
   team.version = Number(team.version || 1) + 1;
   await saveTeam(env, team);

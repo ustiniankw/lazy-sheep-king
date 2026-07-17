@@ -17,7 +17,7 @@ import {
 } from '../lib/user.js';
 import * as Auth from '../lib/auth.js';
 import { MODE } from '../lib/auth.js';
-import { PRIVACY, cyclePrivacy, newTeamCode, buildMyMemberSnapshot, mergeTeamState, makePoke, deriveMemberId, resolveTeamBackend, makeTeamFacade, LocalTeamMock, parseJoinCode } from '../lib/team.js';
+import { PRIVACY, cyclePrivacy, newTeamCode, buildMyMemberSnapshot, mergeTeamState, makePoke, deriveMemberId, resolveTeamBackend, makeTeamFacade, LocalTeamMock, parseJoinCode, buildTeamCreatePayload, buildTeamJoinPayload, buildTeamMemberCardVM, normalizeTeamIdentity } from '../lib/team.js';
 import { safeUUID } from '../lib/user_id.js';
 import { detectAvailableTier, chromePromptApiAvailable } from '../lib/ai_rerank.js';
 import { getWizardProviders, findProvider } from '../lib/providers.js';
@@ -29,7 +29,7 @@ import * as CryptoBackup from '../lib/crypto_backup.js';
 import * as SyncClient from '../lib/sync_client.js';
 import { DEFAULT_BACKEND_URL } from '../lib/sync_config.js';
 
-const APP_VERSION = '0.8.5';
+const APP_VERSION = '0.8.6';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const urlParams = new URLSearchParams(location.search);
@@ -933,11 +933,12 @@ async function teamSelfMeta() {
     getIdentity().catch(() => ({})),
     ensureTeamMemberId(),
   ]);
-  return {
-    memberId,
-    nickname: identity.nickname || profile.displayName || '懒羊羊伙伴',
-    avatarSeed: identity.avatarSeed || '',
-  };
+  return { profile, identity, memberId };
+}
+
+function teamSelfPayload(meta, kind = 'member') {
+  const input = { identity: meta?.identity, profile: meta?.profile, memberId: meta?.memberId };
+  return kind === 'founder' ? buildTeamCreatePayload(input).founder : buildTeamJoinPayload(input).member;
 }
 
 // 顶部动态状态徽标
@@ -963,22 +964,28 @@ function avatarColor(name) {
 // ---------------------------------------------------------------------------
 // v0.8.2 · 队伍快照拉取 + 成员视图模型
 // ---------------------------------------------------------------------------
+function teamAvatarHtml(member) {
+  if (member?.avatarUrl) {
+    return `<img src="${escapeHtml(member.avatarUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" />`;
+  }
+  return escapeHtml(avatarInitial(member?.name));
+}
+
+function teamAvatarStyle(member) {
+  return member?.avatarUrl ? '' : ` style="background:${avatarColor(member?.name)}"`;
+}
+
+async function localTeamIdentity() {
+  const [profile, identity] = await Promise.all([
+    ensureProfile().catch(() => ({})),
+    getIdentity().catch(() => ({})),
+  ]);
+  return normalizeTeamIdentity(identity, profile);
+}
+
 // 把 Worker/本地 mock 的 member 结构 → 成员卡片视图模型
-function teamMemberCardVM(member, selfId) {
-  const snap = member?.snapshot || {};
-  const percent = Math.max(0, Math.min(100, Number(snap.progress || 0)));
-  const title = snap.activeTaskTitle ? String(snap.activeTaskTitle) : '';
-  let label = '空闲中';
-  if (title) label = `${title} · ${percent}%`;
-  else if (percent > 0) label = `进度 ${percent}%`;
-  return {
-    memberId: String(member.memberId || ''),
-    name: String(member.nickname || '懒羊羊伙伴'),
-    isSelf: String(member.memberId || '') === String(selfId || ''),
-    label,
-    mood: snap.mood ? String(snap.mood) : '',
-    lastSeenAt: Number(member.lastSeenAt || member.joinedAt || 0),
-  };
+function teamMemberCardVM(member, selfId, persistedMemberId, identity) {
+  return buildTeamMemberCardVM(member, { selfId, persistedMemberId, localIdentity: identity });
 }
 
 // 构造上报快照（尊重隐私：只在非空闲时带标题）
@@ -1061,8 +1068,17 @@ async function sendHeartbeat() {
   if (!session.teamCode) return;
   const facade = await getTeamFacade();
   try {
-    const snapshot = await buildTeamSnapshotPayload();
-    await facade.heartbeat({ code: session.teamCode, token: session.teamToken, memberId: session.teamMemberId, snapshot });
+    const [snapshot, identity] = await Promise.all([buildTeamSnapshotPayload(), localTeamIdentity()]);
+    await facade.heartbeat({
+      code: session.teamCode,
+      token: session.teamToken,
+      memberId: session.teamMemberId,
+      snapshot,
+      nickname: identity.nickname,
+      avatarSeed: identity.avatarSeed,
+      avatarUrl: identity.avatarUrl,
+      avatarKind: identity.avatarKind,
+    });
   } catch (error) {
     console.warn('[懒羊羊大王] heartbeat failed:', error?.message || error);
   }
@@ -1089,8 +1105,9 @@ async function refreshTeamAndRender() {
     return;
   }
   const selfId = session.teamMemberId;
+  const identity = await localTeamIdentity();
   const members = (view?.members || [])
-    .map((m) => teamMemberCardVM(m, selfId))
+    .map((m) => teamMemberCardVM(m, selfId, session.teamMemberId, identity))
     .sort((a, b) => (a.isSelf ? -1 : b.isSelf ? 1 : Number(b.lastSeenAt || 0) - Number(a.lastSeenAt || 0)));
   const pokesToMe = (view?.pokes || []).filter((p) => String(p.toMemberId) === String(selfId));
   await updatePokeBell(pokesToMe);
@@ -1130,8 +1147,9 @@ async function createTeamFlow() {
   const facade = await getTeamFacade({ force: true });
   const meta = await teamSelfMeta();
   try {
-    const res = await facade.createTeam({ founder: meta });
-    await Storage.setTeamSession({ teamCode: res.code, teamToken: res.token, teamMemberId: res.memberId || meta.memberId, teamPokeSeenTs: Date.now() });
+    const founder = teamSelfPayload(meta, 'founder');
+    const res = await facade.createTeam({ founder });
+    await Storage.setTeamSession({ teamCode: res.code, teamToken: res.token, teamMemberId: res.memberId || founder.memberId, teamPokeSeenTs: Date.now() });
     await Storage.setTeamSelf({ teamCode: res.code, joinedAt: Date.now() });
     await startTeamLoops();
     await sendHeartbeat().catch(() => {});
@@ -1150,8 +1168,9 @@ async function joinTeamFlow(codeInput) {
   const facade = await getTeamFacade({ force: true });
   const meta = await teamSelfMeta();
   try {
-    const res = await facade.joinTeam({ code, member: meta });
-    await Storage.setTeamSession({ teamCode: code, teamToken: res.token, teamMemberId: meta.memberId, teamPokeSeenTs: Date.now() });
+    const member = teamSelfPayload(meta, 'member');
+    const res = await facade.joinTeam({ code, member });
+    await Storage.setTeamSession({ teamCode: code, teamToken: res.token, teamMemberId: member.memberId, teamPokeSeenTs: Date.now() });
     await Storage.setTeamSelf({ teamCode: code, joinedAt: Date.now() });
     pendingJoinCode = '';
     await startTeamLoops();
@@ -1269,7 +1288,7 @@ function renderTeamDashboard({ session, members, pokesToMe }) {
       <div class="team-members">
         ${members.map((m) => `
           <div class="team-member-card ${m.isSelf ? 'self' : ''}">
-            <div class="team-avatar" style="background:${avatarColor(m.name)}">${escapeHtml(avatarInitial(m.name))}</div>
+            <div class="team-avatar"${teamAvatarStyle(m)}>${teamAvatarHtml(m)}</div>
             <div class="team-member-main">
               <div class="team-member-head">
                 <span class="team-member-name">${escapeHtml(m.name)}</span>
