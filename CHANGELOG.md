@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## v0.8.4 — 两个用户实测 Bug 修复（2026-07-17）
+
+### 🐛 Bug A（关键）· 创建队伍失败："网络不好，请重试"
+
+> **根因**：组队页显示 🟢 云端已连接（`/v1/health` 是 GET、且不依赖 KV，所以能通），但点【创建队伍】时 `POST /v1/team/create` 需要 KV。线上 Worker（`lsk-sync.xiakaiwen12.workers.dev`）**未绑定 KV namespace**，返回 `HTTP 500 {"error":"kv_unbound"}`；前端 `friendlyTeamError` 把所有非枚举状态（含 500）都归成"网络不好，请重试"，掩盖了真实原因。curl 冒烟已确认：OPTIONS preflight / CORS 头完全正常（`Access-Control-Allow-Headers: Content-Type,Authorization`、`Allow-Methods` 含 POST），**并非 CORS 问题**。
+
+- **前端错误映射修复**（`popup/popup.js` `friendlyTeamError`）：透传后端真实 `message`——4xx 显示"参数错误：xxx"，5xx 显示"服务器错误（500）：xxx"，不再一律"网络不好"。
+- **⚠️ 需要用户操作（Worker 侧配置）**：Worker **代码无需重贴**（CORS 已正确）。但必须在 **Cloudflare Dashboard → 你的 Worker → Settings → Bindings → KV Namespace Bindings** 新增一个绑定：变量名 **`KV`**，选择（或先创建）一个 KV namespace，保存后 **Deploy**。绑定完成后创建队伍即可真正调通。
+
+### 🐛 Bug B · 导航栏选中态错位
+
+> **根因**：`VIEW_META.team.tab = 'my'`，而 `showView()` 用底部 tabbar 的 `tab` 值去更新侧边栏/图标栏高亮（`updateSidebarActive(tab || name)`）。侧边栏有独立的 `data-nav="team"` 项，于是进入组队页时高亮被错误地停在「我的」。
+
+- **修复**：`VIEW_META` 每个视图新增独立 `nav` 字段（team → `team`），`showView()` 改用 `nav` 更新侧边栏/图标栏高亮；底部 tabbar 仍复用 `tab`（tabbar 无 team 项，映射到 my 符合预期）。现点【队友】→ 侧栏高亮「队友」。
+
+### ✅ 测试
+
+- `tests/sync_client.test.mjs` 新增「错误分类」用例，覆盖 400 / 401 / 429 / 500(kv_unbound) / CORS(TypeError) 各分支，验证 `SyncHttpError` 携带 `status` + `body.message`、网络错误重试后抛出。
+
+### 🔧 版本
+
+- `manifest.json` → `0.8.4`；`popup/popup.js` `APP_VERSION` → `0.8.4`；`service-worker.js` CACHE_NAME → `lsk-cache-v0.8.4`；`index.html` 页脚 → `v0.8.4`。
+
 ## v0.8.3 — 修复「队友」tab 点不动 / 空白（2026-07-17）
 
 > **根因**：v0.8.2 组队页重写后，`renderTeam()` / `enterTeamView()` 在把任何 UI 画进 `#team-root` 之前，`await probeTeamHealth()` 先做了一次到 Cloudflare Worker 的健康探测（`/v1/health`，6s 超时 + 1 次重试 ≈ 最长 12s）。在预览 / 无 CORS 白名单 / Worker 不可达场景下，这段网络等待会阻塞首屏渲染，导致点开「队友」后长时间空白，用户体验上就是「点不动」。

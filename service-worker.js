@@ -1,5 +1,5 @@
-// service-worker.js — v0.8.3 PWA cache（组队 tab 首屏不再被健康探测阻塞）
-const CACHE_NAME = 'lsk-cache-v0.8.3';
+// service-worker.js — v0.8.4 PWA cache（创建队伍错误提示 + 导航高亮修复）
+const CACHE_NAME = 'lsk-cache-v0.8.4';
 
 const APP_SHELL = [
   './',

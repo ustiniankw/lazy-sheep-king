@@ -172,6 +172,58 @@ describe('HTTP 错误', () => {
   });
 });
 
+// v0.8.4：错误分类回归 —— 保证前端 friendlyTeamError 能拿到 status + body.message，
+// 避免把 4xx/5xx（例如 500 kv_unbound）都误报成"网络不好"。
+describe('错误分类（供前端友好提示）', () => {
+  it('400 bad_request → SyncHttpError 携带 status=400 与 body.message', async () => {
+    setFetch(() => jsonRes({ ok: false, error: 'bad_request', message: '缺少 founderMemberId / founderNickname' }, { ok: false, status: 400 }));
+    await assert.rejects(
+      () => createTeam({ backendUrl: BACKEND, founder: {} }),
+      (err) => err instanceof SyncHttpError
+        && err.status === 400
+        && err.body && err.body.message === '缺少 founderMemberId / founderNickname',
+    );
+    assert.equal(calls.length, 1, '4xx 不应重试');
+  });
+
+  it('401 unauthorized → SyncHttpError.status=401', async () => {
+    setFetch(() => jsonRes({ ok: false, error: 'unauthorized', message: 'token 无效' }, { ok: false, status: 401 }));
+    await assert.rejects(
+      () => heartbeat({ backendUrl: BACKEND, code: 'ABC123', token: 'bad', memberId: 'm1', snapshot: {} }),
+      (err) => err instanceof SyncHttpError && err.status === 401,
+    );
+    assert.equal(calls.length, 1);
+  });
+
+  it('429 rate_limited → SyncHttpError.status=429 且不重试', async () => {
+    setFetch(() => jsonRes({ ok: false, error: 'rate_limited', message: '请求过于频繁，请稍后再试' }, { ok: false, status: 429 }));
+    await assert.rejects(
+      () => createTeam({ backendUrl: BACKEND, founder: { memberId: 'm1', nickname: '队长' } }),
+      (err) => err instanceof SyncHttpError && err.status === 429,
+    );
+    assert.equal(calls.length, 1, '429 不应重试');
+  });
+
+  it('500 kv_unbound → SyncHttpError.status=500 且 body.message 可读', async () => {
+    setFetch(() => jsonRes({ ok: false, error: 'kv_unbound', message: 'KV 未绑定：请在 wrangler.toml 配置 [[kv_namespaces]]' }, { ok: false, status: 500 }));
+    await assert.rejects(
+      () => createTeam({ backendUrl: BACKEND, founder: { memberId: 'm1', nickname: '队长' } }),
+      (err) => err instanceof SyncHttpError
+        && err.status === 500
+        && /KV 未绑定/.test(err.body.message),
+    );
+  });
+
+  it('CORS / 网络错误（TypeError）→ 非 SyncHttpError，会重试后抛出', async () => {
+    setFetch(() => Promise.reject(new TypeError('Failed to fetch')));
+    await assert.rejects(
+      () => createTeam({ backendUrl: BACKEND, founder: { memberId: 'm1', nickname: '队长' } }),
+      (err) => !(err instanceof SyncHttpError) && err instanceof TypeError,
+    );
+    assert.equal(calls.length, 2, 'CORS/网络错误应重试一次共 2 次');
+  });
+});
+
 describe('重试', () => {
   it('首次网络错误、第二次成功 → 自动重试 1 次', async () => {
     let n = 0;
