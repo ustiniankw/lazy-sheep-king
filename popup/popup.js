@@ -1,11 +1,20 @@
-// popup.js — v0.5.0: 响应式 + PWA + Open-in-Tab
+// popup.js — v0.6.0: 认证瘦身 + 2C 化落地页 + 自动昵称/DiceBear 头像
 import { Storage } from '../lib/storage.js';
 import { breakdownTask, refineStep, rememberBreakdown, localBreakdown } from '../lib/breakdown.js';
 import { celebrateStep, celebrateAll } from '../lib/celebrate.js';
 import { createCountdown, fmt as fmtTimer, calcStepReward, calcTaskCompletionBonus } from '../lib/step_timer.js';
 import { Pets, PET_TYPES, MOOD_META, computeMood, affinityProgress, todayFeedTotal } from '../lib/pets.js';
 import { buildHeatmap, summarize } from '../lib/calendar.js';
-import { ensureProfile, setDisplayName, regenerateUserId } from '../lib/user.js';
+import {
+  ensureProfile,
+  setDisplayName,
+  regenerateUserId,
+  getIdentity,
+  rollNewNickname,
+  rollNewAvatar,
+  useUploadedAvatar,
+  pickAvatarStyle,
+} from '../lib/user.js';
 import * as Auth from '../lib/auth.js';
 import { MODE } from '../lib/auth.js';
 import { PRIVACY, cyclePrivacy, newTeamCode, buildMyMemberSnapshot, mergeTeamState, makePoke } from '../lib/team.js';
@@ -14,8 +23,9 @@ import { getWizardProviders, findProvider } from '../lib/providers.js';
 import { chatComplete } from '../lib/llm_client.js';
 import { computeBreakpoint } from '../lib/layout.js';
 import { installSWUpdateWatcher } from '../lib/pwa_update.js';
+import { AVATAR_STYLES } from '../lib/identity.js';
 
-const APP_VERSION = '0.5.2';
+const APP_VERSION = '0.6.0';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const urlParams = new URLSearchParams(location.search);
@@ -869,7 +879,6 @@ async function ensureLocalTeamState() {
     Storage.getSettings(),
   ]);
   if (!teamSelf.teamCode) return { teamSelf, teamState };
-  const authState = await Auth.getAuthState();
   const snapshot = buildMyMemberSnapshot({
     profile,
     stats,
@@ -877,7 +886,7 @@ async function ensureLocalTeamState() {
     dailyLog: stats.dailyLog,
     activeTask,
     privacy: activeTask?.privacy || settings?.team?.defaultPrivacy || PRIVACY.PUBLIC,
-    provider: authState.provider === 'github' ? 'github' : '',
+    provider: '',
   });
   const nextState = mergeTeamState(teamState || {}, {
     code: teamSelf.teamCode,
@@ -1138,7 +1147,6 @@ async function renderTeam() {
               <div class="team-member-head">
                 <div class="team-member-name">
                   <span>${escapeHtml(member.name || '懒羊羊伙伴')}</span>
-                  ${member.provider === 'github' ? '<span class="team-github-badge" title="GitHub 已验证">🐙</span>' : ''}
                   ${member.userId === profile.userId ? '<span class="team-self-tag">我</span>' : ''}
                 </div>
                 <span class="team-device-chip">${escapeHtml(member.device || 'Web')}</span>
@@ -1362,50 +1370,47 @@ function initialAvatar(name) {
 
 async function renderAccountCard() {
   const state = await Auth.getAuthState();
+  const identity = await getIdentity();
   const profile = await ensureProfile();
   const nameInput = $('#account-display-name');
-  const displayName = state.displayName || profile.displayName || '懒羊羊伙伴';
+  const displayName = state.displayName || identity.nickname || profile.displayName || '懒羊羊伙伴';
   if (document.activeElement !== nameInput) nameInput.value = displayName;
 
-  // 头像：自定义宠物 > github 头像 > 首字母
+  // 头像：自定义宠物 > identity 头像（DiceBear / 上传） > emoji 兜底
   const img = $('#account-avatar-img');
   const fallback = $('#account-avatar-fallback');
   const petState = await Pets.getState().catch(() => null);
   const customImg = petState?.customImage || '';
-  const ghAvatar = state.avatarUrl || '';
+  const identityAvatar = identity.avatarUrl || '';
   if (customImg) {
     img.src = customImg; img.classList.remove('hidden'); fallback.classList.add('hidden');
-  } else if (ghAvatar) {
-    img.src = ghAvatar; img.classList.remove('hidden'); fallback.classList.add('hidden');
+  } else if (identityAvatar) {
+    img.src = identityAvatar; img.classList.remove('hidden'); fallback.classList.add('hidden');
   } else {
     img.classList.add('hidden'); fallback.classList.remove('hidden');
-    fallback.textContent = state.mode === MODE.GUEST ? '🐑' : initialAvatar(displayName);
+    fallback.textContent = '🐑';
   }
 
   // 认证模式 chip
   const chip = $('#account-mode-chip');
   chip.className = 'mode-chip';
-  const verified = $('#account-verified');
-  verified.classList.add('hidden');
   const lockBtn = $('#btn-account-lock');
   lockBtn.classList.add('hidden');
   if (state.mode === MODE.PASSPHRASE) {
     chip.classList.add('mode-passphrase');
-    chip.textContent = state.locked ? '🔐 本地账号（已锁定）' : '🔐 本地账号';
-    $('#account-sub').textContent = state.locked ? '已锁定 · 解锁后可执行敏感操作' : `本地密码账号 · 创建于 ${formatDate(state.createdAt)}`;
+    chip.textContent = state.locked ? '🔐 本地密码（已锁定）' : '🔐 本地密码';
+    $('#account-sub').textContent = state.locked
+      ? '已锁定 · 解锁后可执行敏感操作'
+      : `已挂本地密码 · 备份将自动加密`;
     if (!state.locked) lockBtn.classList.remove('hidden');
-  } else if (state.mode === MODE.GITHUB) {
-    chip.classList.add('mode-github');
-    chip.textContent = '🐙 GitHub';
-    verified.classList.remove('hidden');
-    $('#account-sub').textContent = `@${state.login || ''} · GitHub 已验证身份`;
   } else {
     chip.classList.add('mode-guest');
-    chip.textContent = '👤 访客';
-    $('#account-sub').textContent = '匿名模式 · 数据仅保存在本机';
+    chip.textContent = '👤 匿名';
+    $('#account-sub').textContent = '数据只保存在本机 · 想加密备份可点下面「挂本地密码」';
   }
 
   renderAccountActions(state);
+  renderIdentityEditor(identity);
 }
 
 function actionButton(label, cls = 'ghost') {
@@ -1437,36 +1442,33 @@ function renderAccountActions(state) {
       box.appendChild(input);
       box.appendChild(unlock);
     } else {
-      hint.textContent = '本地密码账号已解锁，会话 15 分钟无操作会自动锁定。';
+      hint.textContent = '本地密码已挂上，15 分钟无操作会自动锁定，用于加密备份。';
       const change = actionButton('🔑 修改密码');
       change.addEventListener('click', () => openSignInModal('change'));
       const lock = actionButton('🔓 锁定');
       lock.addEventListener('click', async () => { Auth.lockSession(); flash('已锁定'); await renderMyView(); });
-      const out = actionButton('🚪 退出账户');
+      const out = actionButton('🚪 清除本地密码');
       out.addEventListener('click', signOutFlow);
       box.appendChild(change); box.appendChild(lock); box.appendChild(out);
     }
-  } else if (state.mode === MODE.GITHUB) {
-    hint.textContent = 'GitHub 已验证身份，令牌加密存于本机（best-effort），用于后续 Gist 同步。';
-    const home = actionButton('🐙 打开 GitHub 主页');
-    home.addEventListener('click', () => {
-      const url = `https://github.com/${state.login || ''}`;
-      if (typeof chrome !== 'undefined' && chrome?.tabs?.create) chrome.tabs.create({ url });
-      else window.open(url, '_blank');
-    });
-    const out = actionButton('🚪 退出账户');
-    out.addEventListener('click', signOutFlow);
-    box.appendChild(home); box.appendChild(out);
   } else {
-    hint.textContent = '选择一种免费方式创建账号，多设备也能找回你的进度。';
-    const pp = actionButton('🔐 创建本地密码账号', 'primary');
+    hint.textContent = '默认匿名即可用；如果想让备份文件自带 AES-GCM 加密，可以挂一个本地密码（只保存在本机）。';
+    const pp = actionButton('🔐 挂一个本地密码', 'primary');
     pp.addEventListener('click', () => openSignInModal('passphrase'));
-    const gh = actionButton('🐙 用 GitHub 登录');
-    gh.addEventListener('click', () => openSignInModal('github'));
-    const google = actionButton('🟢 用 Google 登录（待发布至商店后启用）');
-    google.disabled = true;
-    google.title = 'Google 登录需先把扩展发布到 Chrome Web Store 并配置稳定的 OAuth2 client_id';
-    box.appendChild(pp); box.appendChild(gh); box.appendChild(google);
+    box.appendChild(pp);
+  }
+}
+
+function renderIdentityEditor(identity) {
+  const previewImg = $('#avatar-editor-img');
+  if (previewImg) previewImg.src = identity.avatarUrl || '';
+  const styleRow = $('#avatar-style-row');
+  if (styleRow) {
+    const activeStyle = identity.avatarKind === 'upload' ? '' : identity.avatarStyle;
+    styleRow.querySelectorAll('.avatar-style-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.avatarStyle === activeStyle);
+      btn.disabled = false;
+    });
   }
 }
 
@@ -2038,6 +2040,63 @@ $('#btn-account-save-name').addEventListener('click', async () => {
   flash('昵称已保存');
 });
 
+$('#btn-account-reroll-name')?.addEventListener('click', async () => {
+  const next = await rollNewNickname();
+  $('#account-display-name').value = next.nickname;
+  await setDisplayName(next.nickname);
+  await renderMyView();
+  flash('已换一个新昵称 🎲');
+});
+
+// v0.6.0 · 头像编辑器
+$('#avatar-editor-preview')?.addEventListener('click', async () => {
+  await rollNewAvatar();
+  await renderMyView();
+});
+$('#avatar-editor-preview')?.addEventListener('keydown', async (event) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    await rollNewAvatar();
+    await renderMyView();
+  }
+});
+$$('.avatar-style-btn').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const style = btn.dataset.avatarStyle;
+    if (!AVATAR_STYLES.includes(style)) return;
+    await pickAvatarStyle(style);
+    await rollNewAvatar(style);
+    await renderMyView();
+  });
+});
+$('#btn-avatar-reroll')?.addEventListener('click', async () => {
+  await rollNewAvatar();
+  await renderMyView();
+  flash('换了一个新头像 ✨');
+});
+$('#btn-avatar-upload')?.addEventListener('click', () => $('#avatar-upload-input')?.click());
+$('#avatar-upload-input')?.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (file.size > 512 * 1024) {
+    flash('图片超过 512KB，试试小一点的');
+    event.target.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      await useUploadedAvatar(String(reader.result || ''));
+      await renderMyView();
+      flash('头像已更新 📸');
+    } catch (error) {
+      flash('上传失败：' + (error?.message || error));
+    }
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+});
+
 $('#my-ai-rerank-enabled').addEventListener('change', async (event) => {
   settingsCache = await Storage.setSettings({ aiRerankEnabled: event.target.checked });
   await refreshLLMHint();
@@ -2145,11 +2204,9 @@ $('#btn-stimer-stop').addEventListener('click', () => stimer.stop());
 renderStimer(0, stimer.snapshot());
 
 // ---------------------------------------------------------------------------
-// 登录 / 创建账号 弹窗
+// 登录 / 创建账号 弹窗（v0.6.0 · 仅本地密码）
 // ---------------------------------------------------------------------------
 let modalMode = 'passphrase';
-let ghAborted = false;
-let ghCountdownTimer = null;
 
 function setModalTab(tab) {
   const modal = $('#sign-in-modal');
@@ -2177,13 +2234,10 @@ function ensureOldPassField(show) {
 function openSignInModal(tab = 'passphrase') {
   modalMode = tab === 'change' ? 'change' : 'setup';
   $('#pp-error').classList.add('hidden');
-  $('#gh-error').classList.add('hidden');
-  $('#gh-flow').classList.add('hidden');
-  ['#pp-pass', '#pp-pass2', '#gh-client-id'].forEach((sel) => { const el = $(sel); if (el) el.value = ''; });
+  ['#pp-pass', '#pp-pass2'].forEach((sel) => { const el = $(sel); if (el) el.value = ''; });
   updateStrengthMeter('');
 
-  const paneTab = tab === 'change' ? 'passphrase' : tab;
-  setModalTab(paneTab);
+  setModalTab('passphrase');
 
   const nameWrap = $('#pp-name');
   const nameLabel = nameWrap.previousElementSibling;
@@ -2194,18 +2248,16 @@ function openSignInModal(tab = 'passphrase') {
     ensureOldPassField(true);
     $('#btn-pp-submit').textContent = '🔑 更新密码';
   } else {
-    $('#sign-in-title').textContent = '创建 / 登录账号';
+    $('#sign-in-title').textContent = '挂一个本地密码';
     nameWrap.classList.remove('hidden');
     if (nameLabel) nameLabel.classList.remove('hidden');
     ensureOldPassField(false);
-    $('#btn-pp-submit').textContent = '🔐 创建本地密码账号';
+    $('#btn-pp-submit').textContent = '🔐 挂本地密码';
   }
   $('#sign-in-modal').classList.remove('hidden');
 }
 
 function closeSignInModal() {
-  ghAborted = true;
-  if (ghCountdownTimer) { clearInterval(ghCountdownTimer); ghCountdownTimer = null; }
   $('#sign-in-modal').classList.add('hidden');
 }
 
@@ -2252,71 +2304,9 @@ async function submitPassphrase() {
     return;
   }
   closeSignInModal();
-  flash(modalMode === 'change' ? '密码已更新 🔐' : '本地密码账号已创建 🎉');
+  flash(modalMode === 'change' ? '密码已更新 🔐' : '本地密码已挂上 🎉');
   await renderMyView();
   await refreshUserBadge();
-}
-
-function renderTextQR(container, text) {
-  // 纯文本降级：不引入任何付费/外部依赖，直接展示可点击链接
-  container.textContent = '';
-  const tip = document.createElement('div');
-  tip.className = 'gh-qr-fallback';
-  tip.textContent = '📱 手机可直接访问：' + text;
-  container.appendChild(tip);
-}
-
-async function startGitHubFlow() {
-  const errBox = $('#gh-error');
-  errBox.classList.add('hidden');
-  const clientId = $('#gh-client-id').value.trim();
-  const begin = await Auth.beginGitHubDeviceFlow(clientId);
-  if (begin.ok === false) {
-    errBox.textContent = begin.message || '无法开始 GitHub 登录';
-    errBox.classList.remove('hidden');
-    return;
-  }
-  ghAborted = false;
-  $('#gh-flow').classList.remove('hidden');
-  $('#gh-user-code').textContent = begin.userCode;
-  $('#gh-verify-link').href = begin.verificationUri;
-  $('#gh-verify-link').textContent = begin.verificationUri.replace(/^https?:\/\//, '');
-  renderTextQR($('#gh-qr'), begin.verificationUri);
-
-  // 倒计时
-  let remain = begin.expiresIn;
-  $('#gh-status').firstChild && ($('#gh-status').childNodes[0].nodeValue = '等待授权中…');
-  const countdownEl = $('#gh-countdown');
-  if (ghCountdownTimer) clearInterval(ghCountdownTimer);
-  ghCountdownTimer = setInterval(() => {
-    remain -= 1;
-    if (countdownEl) countdownEl.textContent = ` 剩余 ${Math.max(0, remain)}s`;
-    if (remain <= 0) { clearInterval(ghCountdownTimer); ghCountdownTimer = null; }
-  }, 1000);
-
-  try {
-    const state = await Auth.pollGitHubDeviceFlow({
-      clientId,
-      deviceCode: begin.deviceCode,
-      interval: begin.interval,
-      expiresIn: begin.expiresIn,
-    });
-    if (ghAborted) return;
-    if (ghCountdownTimer) { clearInterval(ghCountdownTimer); ghCountdownTimer = null; }
-    closeSignInModal();
-    flash(`GitHub 登录成功：@${state.login} 🐙`);
-    await renderMyView();
-    await refreshUserBadge();
-  } catch (error) {
-    if (ghAborted) return;
-    if (ghCountdownTimer) { clearInterval(ghCountdownTimer); ghCountdownTimer = null; }
-    const msg = String(error?.message || error);
-    errBox.textContent = msg.startsWith('EXPIRED') ? '设备码已过期，请重试'
-      : msg.startsWith('ACCESS_DENIED') ? '你在 GitHub 上取消了授权'
-      : msg.startsWith('NETWORK') || msg.startsWith('NOT_AVAILABLE') ? '网页试玩环境无法完成 GitHub 登录，请在安装扩展后使用'
-      : `GitHub 登录失败：${msg}`;
-    errBox.classList.remove('hidden');
-  }
 }
 
 $('#btn-modal-close').addEventListener('click', closeSignInModal);
@@ -2326,16 +2316,6 @@ $('#sign-in-modal').addEventListener('click', (event) => {
 $$('.modal-tab').forEach((btn) => btn.addEventListener('click', () => setModalTab(btn.dataset.modalTab)));
 $('#pp-pass').addEventListener('input', (event) => updateStrengthMeter(event.target.value));
 $('#btn-pp-submit').addEventListener('click', submitPassphrase);
-$('#btn-gh-start').addEventListener('click', startGitHubFlow);
-$('#btn-gh-copy').addEventListener('click', async () => {
-  const code = $('#gh-user-code').textContent;
-  try {
-    await navigator.clipboard.writeText(code);
-    flash('设备码已复制');
-  } catch {
-    flash('复制失败，请手动输入');
-  }
-});
 $('#btn-account-lock').addEventListener('click', async () => {
   Auth.lockSession();
   flash('已锁定账户');

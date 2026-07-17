@@ -1040,6 +1040,51 @@ body.full .ios-main { padding-bottom: calc(var(--tabbar-h) + 40px); }
 .account-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .account-actions .ios-btn, .account-actions .btn { width: 100%; }
 
+/* ==================== Avatar editor (v0.6.0) ==================== */
+.avatar-editor {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.avatar-editor-preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 24px;
+  overflow: hidden;
+  background: var(--surface-bg);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: transform 0.15s var(--ease-ios), box-shadow 0.2s var(--ease-ios);
+  flex-shrink: 0;
+  position: relative;
+}
+.avatar-editor-preview:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.10); }
+.avatar-editor-preview:active { transform: scale(0.96); }
+.avatar-editor-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar-editor-actions { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 8px; }
+.avatar-style-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.avatar-style-btn {
+  border: 1px solid var(--separator);
+  background: var(--surface-card);
+  color: var(--text-secondary);
+  border-radius: 100px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s var(--ease-ios), color 0.15s var(--ease-ios), border-color 0.15s var(--ease-ios);
+}
+.avatar-style-btn.active {
+  background: rgba(0,122,255,0.12);
+  color: var(--ios-blue);
+  border-color: transparent;
+}
+.avatar-style-btn:active { transform: scale(0.96); }
+.avatar-editor-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+
 /* ==================== Modal ==================== */
 .modal-overlay {
   position: fixed;

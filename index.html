@@ -2,12 +2,15 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>懒羊羊大王 · 在线试玩 (v0.5.2 · GitHub Pages 自动部署 + Release-on-tag)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>懒羊羊大王 · 把大任务拆成小步骤，一点点搞定</title>
+  <meta name="description" content="懒羊羊大王 · 把大任务拆成小步骤，一点点搞定。免费的 AI 拆解 + 养宠物 + 组队打卡 + 日历追踪。" />
   <link rel="icon" href="icons/icon-48.png" />
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#007AFF" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <link rel="apple-touch-icon" href="icons/icon-256.png" />
   <style>
     :root {
@@ -16,7 +19,6 @@
       --ios-orange: #FF9500;
       --ios-red: #FF3B30;
       --ios-purple: #AF52DE;
-      --ios-gray1: #8E8E93;
       --ios-gray6: #F2F2F7;
       --surface-bg: var(--ios-gray6);
       --surface-card: #FFFFFF;
@@ -24,10 +26,10 @@
       --text-primary: #1C1C1E;
       --text-secondary: #6E6E73;
       --text-tertiary: #86868B;
-      --radius-card: 14px;
+      --radius-card: 20px;
       --shadow-card: 0 1px 3px rgba(0,0,0,0.04);
-      --shadow-elev: 0 8px 24px rgba(0,0,0,0.08);
-      --font-stack: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+      --shadow-elev: 0 12px 40px rgba(0,0,0,0.10);
+      --font-stack: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
       --ease-ios: cubic-bezier(0.4, 0, 0.2, 1);
     }
     @media (prefers-color-scheme: dark) {
@@ -48,218 +50,324 @@
       color: var(--text-primary);
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
-      font-size: 15px;
-      line-height: 1.5;
+      font-size: 16px;
+      line-height: 1.6;
     }
     .wrap {
-      max-width: 1180px;
+      max-width: 860px;
       margin: 0 auto;
-      padding: 32px 20px 60px;
-      display: grid;
-      grid-template-columns: 1fr 460px;
-      gap: 28px;
+      padding: 40px 22px 80px;
     }
-    @media (max-width: 960px) {
-      .wrap { grid-template-columns: 1fr; }
-      .side { order: -1; }
+    header.hero {
+      text-align: center;
+      padding: 40px 8px 12px;
     }
-    header.top { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
-    header.top img { width: 60px; height: 60px; border-radius: 16px; box-shadow: var(--shadow-elev); }
-    header.top h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.5px; color: var(--text-primary); line-height: 1.15; }
-    header.top .subtitle { margin: 6px 0 0; color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
-    .badges { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
-    .badge {
-      background: var(--surface-card);
-      color: var(--ios-blue);
-      padding: 4px 10px;
-      border-radius: 100px;
-      font-size: 11px;
-      font-weight: 600;
-      box-shadow: var(--shadow-card);
+    header.hero .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
     }
-    .badge.new { background: var(--ios-blue); color: #fff; }
-    .card {
-      background: var(--surface-card);
+    header.hero .brand img {
+      width: 64px; height: 64px;
       border-radius: 18px;
-      padding: 20px 22px;
-      box-shadow: var(--shadow-card);
-      margin-bottom: 16px;
-    }
-    .card h2 { margin: 0 0 10px; font-size: 18px; font-weight: 700; letter-spacing: -0.2px; }
-    .card p, .card li { line-height: 1.7; color: var(--text-primary); font-size: 14px; }
-    .card p { color: var(--text-secondary); }
-    .card ul { padding-left: 20px; }
-    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
-    @media (max-width: 640px) { .feature-grid { grid-template-columns: 1fr; } }
-    .feature-item {
-      background: var(--surface-bg);
-      border-radius: 12px;
-      padding: 12px 14px;
-      font-size: 13px;
-      line-height: 1.6;
-      color: var(--text-primary);
-    }
-    .feature-item b { color: var(--ios-blue); font-weight: 600; }
-    .frame-wrap {
-      background: var(--surface-card);
-      border-radius: 20px;
-      padding: 14px;
       box-shadow: var(--shadow-elev);
-      position: sticky;
-      top: 24px;
     }
-    .frame-wrap h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; text-align: center; color: var(--text-secondary); }
-    iframe {
-      width: 100%; height: 760px; border: 0; border-radius: 14px;
-      background: var(--surface-bg);
-      box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    header.hero .brand-name {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
     }
-    .frame-tips { font-size: 11px; color: var(--text-tertiary); margin-top: 8px; text-align: center; line-height: 1.6; }
-    .frame-tips a { color: var(--ios-blue); text-decoration: none; }
-    .cta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-    .cta a {
+    header.hero h1 {
+      margin: 12px auto 14px;
+      font-size: clamp(30px, 6vw, 46px);
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      line-height: 1.12;
+      max-width: 640px;
+    }
+    header.hero p.tag {
+      color: var(--text-secondary);
+      font-size: clamp(15px, 2.6vw, 18px);
+      max-width: 520px;
+      margin: 0 auto 32px;
+      line-height: 1.55;
+    }
+    .cta-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 24px;
+    }
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px 32px;
+      border-radius: 100px;
+      font-size: 17px;
+      font-weight: 700;
+      text-decoration: none;
+      border: 0;
+      cursor: pointer;
+      transition: transform 0.15s var(--ease-ios), opacity 0.15s var(--ease-ios), box-shadow 0.2s var(--ease-ios);
+      font-family: inherit;
+      min-height: 52px;
+    }
+    .cta.primary {
       background: var(--ios-blue);
       color: #fff;
-      text-decoration: none;
-      padding: 10px 16px;
-      border-radius: 12px;
-      font-size: 13px;
-      font-weight: 600;
-      transition: transform 0.15s var(--ease-ios), opacity 0.15s var(--ease-ios);
+      box-shadow: 0 8px 24px rgba(0,122,255,0.30);
     }
-    .cta a:active { transform: scale(0.97); opacity: 0.85; }
-    .cta a.ghost {
-      background: var(--surface-bg);
+    .cta.primary:hover { box-shadow: 0 12px 30px rgba(0,122,255,0.40); }
+    .cta.primary:active { transform: scale(0.97); opacity: 0.9; }
+    .cta.ghost {
+      background: var(--surface-card);
       color: var(--ios-blue);
-    }
-    .roadmap-check { color: var(--ios-green); font-weight: 700; }
-    .roadmap-todo { color: var(--text-tertiary); }
-    .cost-note {
-      margin-top: 12px; padding: 12px 14px; border-radius: 12px;
-      background: rgba(52,199,89,0.10);
-      color: var(--text-primary);
-      font-size: 13px;
-      line-height: 1.6;
-    }
-    .cost-note b { color: var(--ios-green); }
-    .design-tokens {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .swatch { text-align: center; }
-    .swatch-color {
-      width: 100%;
-      aspect-ratio: 1;
-      border-radius: 10px;
-      margin-bottom: 4px;
       box-shadow: var(--shadow-card);
     }
-    .swatch-label { font-size: 10px; color: var(--text-secondary); font-family: 'SF Mono', ui-monospace, monospace; }
-    details summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 4px 0; }
-    details[open] summary { color: var(--ios-blue); }
-    code { background: var(--surface-bg); padding: 1px 6px; border-radius: 4px; font-family: 'SF Mono', ui-monospace, monospace; font-size: 12px; }
+    .cta.ghost:active { transform: scale(0.97); }
+    .cta.hidden { display: none; }
+
+    section.features {
+      margin-top: 60px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+    }
+    .feature {
+      background: var(--surface-card);
+      border-radius: var(--radius-card);
+      padding: 24px 20px;
+      box-shadow: var(--shadow-card);
+      text-align: center;
+    }
+    .feature-icon {
+      font-size: 32px;
+      margin-bottom: 10px;
+      line-height: 1;
+    }
+    .feature-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: var(--text-primary);
+    }
+    .feature-sub {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    section.how {
+      margin-top: 56px;
+      text-align: center;
+    }
+    section.how h2 {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      margin: 0 0 24px;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      text-align: left;
+    }
+    .step {
+      background: var(--surface-card);
+      border-radius: var(--radius-card);
+      padding: 20px 22px;
+      box-shadow: var(--shadow-card);
+    }
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: var(--ios-blue);
+      color: #fff;
+      font-weight: 800;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .step-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .step-sub {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+
+    footer.foot {
+      margin-top: 72px;
+      padding: 24px 0 0;
+      border-top: 1px solid var(--separator);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+    footer.foot a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      margin-left: 14px;
+    }
+    footer.foot a:hover { color: var(--ios-blue); }
+
+    /* PWA 安装成功提示 */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(28,28,30,0.94);
+      color: #fff;
+      padding: 12px 22px;
+      border-radius: 100px;
+      font-size: 14px;
+      font-weight: 500;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s var(--ease-ios), transform 0.25s var(--ease-ios);
+      z-index: 100;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <main>
-      <header class="top">
+    <header class="hero">
+      <div class="brand">
         <img src="icons/icon-128.png" alt="懒羊羊大王" />
-        <div>
-          <h1>懒羊羊大王 · 执行力浏览器插件</h1>
-          <p class="subtitle">v0.5.2 <b>GitHub Pages 自动部署 + Release-on-tag Chrome 扩展包</b>：Web / Zip 扩展 / 源码三种安装方式一次讲清，PWA 新版本发现横幅让用户永远拿到最新。</p>
-          <div class="badges">
-            <span class="badge new">v0.5.2</span>
-            <span class="badge">🌐 GH Pages</span>
-            <span class="badge">📦 Release zip</span>
-            <span class="badge">🔄 SW 更新横幅</span>
-            <span class="badge">🛟 永不卡住</span>
-            <span class="badge">⚡ 免费 AI 向导</span>
-            <span class="badge">📱 PWA</span>
-            <span class="badge">Manifest V3</span>
-          </div>
+        <span class="brand-name">🐑 懒羊羊大王</span>
+      </div>
+      <h1>把大任务拆成小步骤，一点点搞定</h1>
+      <p class="tag">对拖延症友好的执行力小助手。每完成一小步都有懒羊羊在旁边给你鼓劲～</p>
+      <div class="cta-row">
+        <a class="cta primary" id="cta-start" href="popup/popup.html?full=1&pwa=1">立即开始</a>
+        <button class="cta ghost hidden" id="cta-install" type="button">📲 添加到主屏</button>
+      </div>
+    </header>
+
+    <section class="features" aria-label="核心功能">
+      <div class="feature">
+        <div class="feature-icon">✨</div>
+        <div class="feature-title">AI 拆解</div>
+        <div class="feature-sub">写下要做的事，秒变一小步一小步的清单</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🐾</div>
+        <div class="feature-title">养宠物</div>
+        <div class="feature-sub">每完成一步喂养懒羊羊，越做越可爱</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🎯</div>
+        <div class="feature-title">组队打卡</div>
+        <div class="feature-sub">拉上朋友一起冲，互相拍一拍偷懒不了</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📅</div>
+        <div class="feature-title">日历追踪</div>
+        <div class="feature-sub">每天的努力都留下痕迹，连续打卡好带感</div>
+      </div>
+    </section>
+
+    <section class="how">
+      <h2>三步开始你的执行力之旅</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-title">告诉懒羊羊你想做什么</div>
+          <div class="step-sub">比如"写周报"、"整理房间"、"复习期末考"，随便什么都行</div>
         </div>
-      </header>
-
-      <section class="card">
-        <h2>✨ v0.5.0 亮点（点击右侧试玩）</h2>
-        <div class="feature-grid">
-          <div class="feature-item"><b>📱 PWA 安装</b><br/>从浏览器直接安装到桌面/手机主屏幕，离线可用</div>
-          <div class="feature-item"><b>🖥 响应式三栏</b><br/>桌面三栏 / 平板侧栏 / 手机 Tab bar 无缝切换</div>
-          <div class="feature-item"><b>⤢ Open-in-Tab</b><br/>Chrome 扩展一键弹出到完整标签页，大屏体验</div>
-          <div class="feature-item"><b>🎛 桌面模式切换</b><br/>三栏 / 单列极简 两种模式，个性化选择</div>
-          <div class="feature-item"><b>📲 智能安装引导</b><br/>自动识别平台，iOS/Android/Desktop 分别引导</div>
-          <div class="feature-item"><b>⚡ 离线模式</b><br/>Service Worker 缓存 app shell，断网也能用</div>
-          <div class="feature-item"><b>🍎 iOS 原生视觉</b><br/>圆角分组卡片、系统蓝主色、毛玻璃 blur</div>
-          <div class="feature-item"><b>0 功能回退</b><br/>170+ 测试通过；v0.4.0 全部功能完整保留</div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-title">看它把大任务拆成小步骤</div>
+          <div class="step-sub">每一步都简单到几乎不用动脑，专注做完就好</div>
         </div>
-        <div class="cost-note">
-          <b>PWA 安装：</b> iOS Safari → 分享 → 添加到主屏幕 | Android Chrome → 三点菜单 → 安装 | Mac Chrome → 地址栏 ⊕ 安装
-        </div>
-      </section>
-
-      <section class="card">
-        <details>
-          <summary>🎨 设计规范（Design Tokens）</summary>
-          <p style="margin-top:10px">全部 tokens 位于 <code>popup/popup.css</code> 顶部 <code>:root</code>，options / index 共享。</p>
-          <div class="design-tokens">
-            <div class="swatch"><div class="swatch-color" style="background:#007AFF"></div><div class="swatch-label">--ios-blue</div></div>
-            <div class="swatch"><div class="swatch-color" style="background:#34C759"></div><div class="swatch-label">--ios-green</div></div>
-            <div class="swatch"><div class="swatch-color" style="background:#FF9500"></div><div class="swatch-label">--ios-orange</div></div>
-            <div class="swatch"><div class="swatch-color" style="background:#FF3B30"></div><div class="swatch-label">--ios-red</div></div>
-            <div class="swatch"><div class="swatch-color" style="background:#AF52DE"></div><div class="swatch-label">--ios-purple</div></div>
-            <div class="swatch"><div class="swatch-color" style="background:#F2F2F7;border:1px solid var(--separator)"></div><div class="swatch-label">--ios-gray6</div></div>
-            <div class="swatch"><div class="swatch-color" style="background:#FFFFFF;border:1px solid var(--separator)"></div><div class="swatch-label">--surface-card</div></div>
-            <div class="swatch"><div class="swatch-color" style="background:#1C1C1E"></div><div class="swatch-label">--text-primary</div></div>
-          </div>
-          <ul style="margin-top:12px">
-            <li>圆角：卡片 14px · 按钮 12px · 药丸 100px · Row 10px</li>
-            <li>阴影：<code>0 1px 3px rgba(0,0,0,0.04)</code> · elev <code>0 8px 24px rgba(0,0,0,0.08)</code></li>
-            <li>动效：<code>cubic-bezier(0.4, 0, 0.2, 1)</code> · 视图切换 300ms · 按下 scale 0.97</li>
-            <li>字体栈：<code>-apple-system, 'SF Pro Text', 'PingFang SC', ...</code></li>
-            <li>大标题：32px 700 letter-spacing -0.5px，页面顶部大字，滚动内容时依然清晰</li>
-          </ul>
-        </details>
-      </section>
-
-      <section class="card">
-        <h2>🗺️ Roadmap</h2>
-        <ul>
-          <li><span class="roadmap-check">✅</span> <b>v0.1 – v0.3.4</b> · 任务拆解 / 宠物养成 / 多任务 / 倒计时 / 日历 / 组队</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.3.5</b> · 认证账号系统（访客 / 本地密码 / GitHub Device Flow）</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.4.0</b> · iOS 原生风 UI 重构</li>
-          <li><span class="roadmap-check">✅</span> <b>v0.5.0</b> · <b>多端形态：响应式 + PWA + Open-in-Tab</b> <em>← 当前版本</em></li>
-          <li><span class="roadmap-todo">☐</span> v0.6 · 宠物商店 / 换装 / 好友互动</li>
-          <li><span class="roadmap-todo">☐</span> v0.7 · Todoist / Notion / 飞书任务导入</li>
-        </ul>
-        <div class="cta">
-          <a href="https://github.com/ustiniankw/lazy-sheep-king" target="_blank">📦 GitHub 仓库</a>
-          <a class="ghost" href="popup/popup.html?full=1" target="_blank">🖥 大屏模式试玩</a>
-          <a class="ghost" href="options/options.html" target="_blank">⚙️ 打开设置页</a>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>📌 Web 试玩说明</h2>
-        <p>
-          右侧是纯前端 Web 预览：没有 <code>chrome.*</code>，因此会自动降级到 <code>localStorage</code>。<br/>
-          <b>访客</b>、<b>本地密码账号</b> 在试玩环境完全可用；<b>GitHub 登录</b> 因浏览器 CORS 限制可能无法在网页试玩完成，会提示相应错误，这是预期行为。
-        </p>
-      </section>
-    </main>
-
-    <aside class="side">
-      <div class="frame-wrap">
-        <h3>👇 立即试玩 · Web 预览</h3>
-        <iframe src="popup/popup.html" title="懒羊羊大王 popup 预览"></iframe>
-        <div class="frame-tips">
-          Web 预览版没有 <code>chrome.*</code> API，所以用 <code>localStorage</code> 模拟。<br/>
-          <a href="popup/popup.html?full=1" target="_blank">🖥 用大屏模式打开</a>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-title">一小步一小步地完成</div>
+          <div class="step-sub">养懒羊羊、攒连续打卡，一不小心就把事情做完啦</div>
         </div>
       </div>
-    </aside>
+    </section>
+
+    <footer class="foot">
+      <span>© 2026 懒羊羊大王 · <span id="foot-version">v0.6.0</span></span>
+      <span>
+        <a href="https://github.com/ustiniankw/lazy-sheep-king" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/ustiniankw/lazy-sheep-king/issues" target="_blank" rel="noopener">意见反馈</a>
+      </span>
+    </footer>
   </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    // ---------------------- PWA install prompt ----------------------
+    let deferredPrompt = null;
+    const installBtn = document.getElementById('cta-install');
+    const toast = document.getElementById('toast');
+
+    function showToast(text) {
+      toast.textContent = text;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2400);
+    }
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      deferredPrompt = event;
+      installBtn.classList.remove('hidden');
+    });
+
+    installBtn?.addEventListener('click', async () => {
+      if (!deferredPrompt) {
+        // iOS Safari 等不支持 beforeinstallprompt，简单指引
+        showToast('iOS 请点浏览器分享 → 添加到主屏幕');
+        return;
+      }
+      try {
+        deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        if (choice?.outcome === 'accepted') showToast('🎉 已开始安装');
+      } finally {
+        deferredPrompt = null;
+        installBtn.classList.add('hidden');
+      }
+    });
+
+    window.addEventListener('appinstalled', () => {
+      installBtn.classList.add('hidden');
+      showToast('✅ 已添加到主屏');
+    });
+
+    // 已经是 standalone / installed 时隐藏「立即开始」外的次要指引
+    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+      installBtn.classList.add('hidden');
+    }
+
+    // ---------------------- Register service worker ----------------------
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>

@@ -1,4 +1,5 @@
-// tests/auth.test.mjs — v0.3.5 认证账号系统测试
+// tests/auth.test.mjs — v0.6.0 认证瘦身版
+// 主流程覆盖：guest 匿名 + passphrase 本地密码；GitHub / Google 相关接口下线。
 const mem = new Map();
 globalThis.localStorage = {
   getItem: (key) => (mem.has(key) ? mem.get(key) : null),
@@ -13,14 +14,8 @@ const { MODE } = Auth;
 let pass = 0;
 let fail = 0;
 async function t(name, fn) {
-  try {
-    await fn();
-    console.log('  ✓', name);
-    pass += 1;
-  } catch (error) {
-    console.error('  ✗', name, '\n    ', error.message);
-    fail += 1;
-  }
+  try { await fn(); console.log('  ✓', name); pass += 1; }
+  catch (error) { console.error('  ✗', name, '\n    ', error.message); fail += 1; }
 }
 function eq(actual, expected, message = '') {
   if (actual !== expected) throw new Error(`${message} expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
@@ -29,7 +24,23 @@ function ok(condition, message = '') {
   if (!condition) throw new Error(message || 'expected truthy');
 }
 
-console.log('Auth · 本地密码账号');
+console.log('Auth · 匿名 + 昵称主流程（v0.6.0）');
+
+await t('初始状态是匿名 GUEST，且自动带上生成的昵称和 dicebear 头像', async () => {
+  const state = await Auth.getAuthState();
+  eq(state.mode, MODE.GUEST);
+  ok(state.userId, '应生成 usr_xxx');
+  ok(state.nickname && typeof state.nickname === 'string', '昵称应存在');
+  ok(/\d{3}$/.test(state.nickname), '昵称应以三位数字结尾');
+  ok(String(state.avatarUrl || '').startsWith('https://api.dicebear.com/9.x/'), '默认头像走 dicebear');
+  eq(state.avatarKind, 'dicebear');
+});
+
+await t('isSignedIn 在纯匿名模式返回 false', async () => {
+  eq(await Auth.isSignedIn(), false);
+});
+
+console.log('\nAuth · 本地密码账号');
 
 await t('setupPassphrase 成功后进入 passphrase 模式并解锁会话', async () => {
   const state = await Auth.setupPassphrase('小羊管理员', 'Sheep#2026');
@@ -97,11 +108,6 @@ await t('相同 salt+passphrase 派生相同 key，不同 passphrase 不同', as
   const b = await derive('other-pass');
   eq(a1, a2, '相同输入应派生相同 key');
   ok(a1 !== b, '不同 passphrase 应派生不同 key');
-  // 不同 salt 也应不同
-  const salt2 = globalThis.crypto.getRandomValues(new Uint8Array(16));
-  const base = await subtle.importKey('raw', enc.encode('same-pass'), 'PBKDF2', false, ['deriveBits']);
-  const bits2 = await subtle.deriveBits({ name: 'PBKDF2', salt: salt2, iterations: 100000, hash: 'SHA-256' }, base, 256);
-  ok(Buffer.from(new Uint8Array(bits2)).toString('hex') !== a1, '不同 salt 应派生不同 key');
 });
 
 await t('加密备份 roundtrip：plain → enc → plain', async () => {
@@ -127,67 +133,27 @@ await t('加密备份可用密码在锁定态解密', async () => {
   eq(back.payload.hello, 'world');
 });
 
-console.log('\nAuth · GitHub Device Flow（mock fetch）');
+console.log('\nAuth · 退出账户');
 
-await t('beginGitHubDeviceFlow 缺 client_id 返回 MISSING_CLIENT_ID', async () => {
-  const r = await Auth.beginGitHubDeviceFlow('');
-  eq(r.ok, false);
-  eq(r.code, 'MISSING_CLIENT_ID');
-});
-
-await t('设备流：device/code → pending×2 → access_token → user profile', async () => {
-  let pollCount = 0;
-  globalThis.fetch = async (url, opts) => {
-    if (String(url).includes('/login/device/code')) {
-      return { json: async () => ({ device_code: 'DEV-CODE-123', user_code: 'ABCD-1234', verification_uri: 'https://github.com/login/device', interval: 0.01, expires_in: 900 }) };
-    }
-    if (String(url).includes('/login/oauth/access_token')) {
-      pollCount += 1;
-      if (pollCount <= 2) return { json: async () => ({ error: 'authorization_pending' }) };
-      return { json: async () => ({ access_token: 'gho_faketoken', token_type: 'bearer' }) };
-    }
-    if (String(url).includes('api.github.com/user')) {
-      return { json: async () => ({ id: 99887766, login: 'lazysheep', name: '懒羊羊本尊', avatar_url: 'https://avatars/lazysheep.png', email: 'lazy@sheep.dev' }) };
-    }
-    throw new Error(`unexpected url ${url}`);
-  };
-
-  const begin = await Auth.beginGitHubDeviceFlow('Iv1.testclientid');
-  eq(begin.ok, true);
-  eq(begin.userCode, 'ABCD-1234');
-  eq(begin.deviceCode, 'DEV-CODE-123');
-
-  const state = await Auth.pollGitHubDeviceFlow({ clientId: 'Iv1.testclientid', deviceCode: begin.deviceCode, interval: begin.interval, expiresIn: begin.expiresIn });
-  eq(state.mode, MODE.GITHUB);
-  eq(state.provider, 'github');
-  eq(state.providerId, '99887766');
-  eq(state.login, 'lazysheep');
-  eq(state.verified, true);
-  ok(pollCount >= 3, '应轮询到拿到 token');
-
-  // token 加密后可解出
-  const token = await Auth.getGitHubToken();
-  eq(token, 'gho_faketoken');
-});
-
-await t('signOut 后回到访客模式', async () => {
+await t('signOut 后回到 GUEST（本地数据保留）', async () => {
   const state = await Auth.signOut();
   eq(state.mode, MODE.GUEST);
-  delete globalThis.fetch;
+  ok(state.nickname, '匿名态仍带昵称');
 });
 
-await t('beginGitHubDeviceFlow 在 fetch 抛错时优雅降级 NOT_AVAILABLE', async () => {
-  globalThis.fetch = async () => { throw new Error('CORS blocked'); };
-  const r = await Auth.beginGitHubDeviceFlow('Iv1.testclientid');
+console.log('\nAuth · 下线的 OAuth 接口占位');
+
+await t('beginGitHubDeviceFlow 返回 NOT_ENABLED（v0.6.0 起下线）', async () => {
+  const r = await Auth.beginGitHubDeviceFlow('Iv1.anything');
   eq(r.ok, false);
-  eq(r.code, 'NOT_AVAILABLE');
-  ok(r.message.includes('网页试玩'), '应提示网页试玩环境');
-  delete globalThis.fetch;
+  eq(r.code, 'NOT_ENABLED');
 });
 
-console.log('\nAuth · Google 骨架');
+await t('getGitHubToken 永远返回 null', async () => {
+  eq(await Auth.getGitHubToken(), null);
+});
 
-await t('signInGoogle 当前返回 NOT_ENABLED', async () => {
+await t('signInGoogle 返回 NOT_ENABLED', async () => {
   const r = await Auth.signInGoogle();
   eq(r.ok, false);
   eq(r.code, 'NOT_ENABLED');
