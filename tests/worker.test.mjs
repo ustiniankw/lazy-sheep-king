@@ -74,7 +74,7 @@ describe('health', () => {
     assert.equal(res.status, 200);
     const data = await res.json();
     assert.equal(data.ok, true);
-    assert.equal(data.version, '0.8.0');
+    assert.equal(data.version, '0.8.5');
   });
 });
 

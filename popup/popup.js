@@ -29,7 +29,7 @@ import * as CryptoBackup from '../lib/crypto_backup.js';
 import * as SyncClient from '../lib/sync_client.js';
 import { DEFAULT_BACKEND_URL } from '../lib/sync_config.js';
 
-const APP_VERSION = '0.8.4';
+const APP_VERSION = '0.8.5';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const urlParams = new URLSearchParams(location.search);

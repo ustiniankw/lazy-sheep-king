@@ -1,4 +1,4 @@
-// worker/src/index.js — lsk-sync v0.8.0
+// worker/src/index.js — lsk-sync v0.8.5
 // 懒羊羊大王 · 云同步后端（Cloudflare Workers + KV，免费 tier）
 // 职责：
 //   1) 队伍状态（team code + 成员快照 + 拍一拍）
@@ -10,7 +10,14 @@
 //   - 轻量速率限制（每 IP 每分钟 60 次）
 //   - 端到端：vault 密文对服务端不可读；vaultToken 由前端 SHA-256 派生
 
-const VERSION = '0.8.0';
+const VERSION = '0.8.5';
+
+// KV binding 兼容：优先 env.KV，其次 env.LSK_KV。
+// 说明：Cloudflare Dashboard 手动绑定时变量名可能是 KV 或 LSK_KV，
+// 这里同时接受两种名称，避免用户必须再加一个绑定。
+function resolveKv(env) {
+  return (env && (env.KV || env.LSK_KV)) || null;
+}
 
 // KV TTL：token / vault owner 90 天
 const TOKEN_TTL_SECONDS = 90 * 24 * 60 * 60;
@@ -135,15 +142,16 @@ function nowMs() {
 // 速率限制：每 IP 每分钟 RATE_LIMIT_PER_MINUTE 次
 // ---------------------------------------------------------------------------
 async function checkRateLimit(request, env) {
-  if (!env || !env.KV) return true; // KV 不可用时不拦截
+  const kv = resolveKv(env);
+  if (!kv) return true; // KV 不可用时不拦截
   const ip = request.headers.get('CF-Connecting-IP')
     || request.headers.get('X-Forwarded-For')
     || 'unknown';
   const minute = Math.floor(nowMs() / 60000);
   const key = `rl:${ip}:${minute}`;
-  const current = Number((await env.KV.get(key)) || 0);
+  const current = Number((await kv.get(key)) || 0);
   if (current >= RATE_LIMIT_PER_MINUTE) return false;
-  await env.KV.put(key, String(current + 1), { expirationTtl: RATE_LIMIT_TTL_SECONDS });
+  await kv.put(key, String(current + 1), { expirationTtl: RATE_LIMIT_TTL_SECONDS });
   return true;
 }
 
@@ -151,7 +159,8 @@ async function checkRateLimit(request, env) {
 // 队伍数据读写
 // ---------------------------------------------------------------------------
 async function loadTeam(env, code) {
-  const raw = await env.KV.get(teamKey(code));
+  const kv = resolveKv(env);
+  const raw = await kv.get(teamKey(code));
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -161,15 +170,17 @@ async function loadTeam(env, code) {
 }
 
 async function saveTeam(env, team) {
-  await env.KV.put(teamKey(team.code), JSON.stringify(team));
+  const kv = resolveKv(env);
+  await kv.put(teamKey(team.code), JSON.stringify(team));
 }
 
 async function tokenValid(env, code, token) {
   if (!token) return false;
+  const kv = resolveKv(env);
   // 校验 token 是否属于该队伍内的任一成员
-  const list = await env.KV.list({ prefix: `token:${code}:` });
+  const list = await kv.list({ prefix: `token:${code}:` });
   for (const entry of list.keys) {
-    const value = await env.KV.get(entry.name);
+    const value = await kv.get(entry.name);
     if (value) {
       // token 存的是 token 本身作为 value（见签发逻辑）
       if (value === token) return { memberId: entry.name.slice(`token:${code}:`.length) };
@@ -179,8 +190,9 @@ async function tokenValid(env, code, token) {
 }
 
 async function issueToken(env, code, memberId) {
+  const kv = resolveKv(env);
   const token = randomBase64Url(32);
-  await env.KV.put(tokenKey(code, memberId), token, { expirationTtl: TOKEN_TTL_SECONDS });
+  await kv.put(tokenKey(code, memberId), token, { expirationTtl: TOKEN_TTL_SECONDS });
   return token;
 }
 
@@ -215,6 +227,7 @@ async function handleHealth(request, env) {
 }
 
 async function handleTeamCreate(request, env) {
+  const kv = resolveKv(env);
   const body = await readJson(request);
   if (!body || !body.founderMemberId || !body.founderNickname) {
     return errorResponse(400, 'bad_request', '缺少 founderMemberId / founderNickname', request, env);
@@ -223,7 +236,7 @@ async function handleTeamCreate(request, env) {
   let code = '';
   for (let i = 0; i < CODE_CREATE_RETRIES; i += 1) {
     const candidate = generateTeamCode();
-    const existing = await env.KV.get(teamKey(candidate));
+    const existing = await kv.get(teamKey(candidate));
     if (!existing) { code = candidate; break; }
   }
   if (!code) return errorResponse(409, 'code_conflict', '队伍码生成冲突，请重试', request, env);
@@ -331,6 +344,7 @@ async function handleTeamPoke(request, env, code) {
 }
 
 async function handleTeamLeave(request, env, code) {
+  const kv = resolveKv(env);
   const token = bearerToken(request);
   const body = await readJson(request);
   if (!body || !body.memberId) return errorResponse(400, 'bad_request', '缺少 memberId', request, env);
@@ -341,68 +355,72 @@ async function handleTeamLeave(request, env, code) {
 
   team.members = team.members.filter((m) => m.memberId !== String(body.memberId));
   team.version = Number(team.version || 1) + 1;
-  await env.KV.delete(tokenKey(code, String(body.memberId)));
+  await kv.delete(tokenKey(code, String(body.memberId)));
   await saveTeam(env, team);
   return jsonResponse({ ok: true, team }, 200, request, env);
 }
 
 async function handleTeamDelete(request, env, code) {
+  const kv = resolveKv(env);
   const token = bearerToken(request);
   const team = await loadTeam(env, code);
   if (!team) return errorResponse(404, 'not_found', '队伍不存在', request, env);
   // 只允许 founder token
-  const founderToken = await env.KV.get(tokenKey(code, team.founderMemberId));
+  const founderToken = await kv.get(tokenKey(code, team.founderMemberId));
   if (!token || token !== founderToken) {
     return errorResponse(401, 'unauthorized', '只有队长可以解散队伍', request, env);
   }
   // 清理 token 与队伍
-  const list = await env.KV.list({ prefix: `token:${code}:` });
-  for (const entry of list.keys) await env.KV.delete(entry.name);
-  await env.KV.delete(teamKey(code));
+  const list = await kv.list({ prefix: `token:${code}:` });
+  for (const entry of list.keys) await kv.delete(entry.name);
+  await kv.delete(teamKey(code));
   return jsonResponse({ ok: true, deleted: code }, 200, request, env);
 }
 
 // ---- vault ----
 async function handleVaultPut(request, env, vaultId) {
+  const kv = resolveKv(env);
   const body = await readJson(request);
   if (!body || typeof body.ciphertext !== 'string' || !body.ciphertext) {
     return errorResponse(400, 'bad_request', '缺少 ciphertext', request, env);
   }
   const token = bearerToken(request);
-  const owner = await env.KV.get(vaultOwnerKey(vaultId));
+  const owner = await kv.get(vaultOwnerKey(vaultId));
   if (!owner) {
     // 首次上传：需 newVaultToken 建立所有权
     const newToken = String(body.newVaultToken || '').trim();
     if (!newToken) return errorResponse(400, 'bad_request', '首次上传需带 newVaultToken', request, env);
-    await env.KV.put(vaultOwnerKey(vaultId), newToken, { expirationTtl: TOKEN_TTL_SECONDS });
-    await env.KV.put(vaultKey(vaultId), body.ciphertext);
+    await kv.put(vaultOwnerKey(vaultId), newToken, { expirationTtl: TOKEN_TTL_SECONDS });
+    await kv.put(vaultKey(vaultId), body.ciphertext);
     return jsonResponse({ ok: true, vaultId, created: true }, 200, request, env);
   }
   // 已存在：校验 token
   if (!token || token !== owner) return errorResponse(401, 'unauthorized', 'vaultToken 无效', request, env);
-  await env.KV.put(vaultKey(vaultId), body.ciphertext);
+  await kv.put(vaultKey(vaultId), body.ciphertext);
   // 续期所有权 TTL
-  await env.KV.put(vaultOwnerKey(vaultId), owner, { expirationTtl: TOKEN_TTL_SECONDS });
+  await kv.put(vaultOwnerKey(vaultId), owner, { expirationTtl: TOKEN_TTL_SECONDS });
   return jsonResponse({ ok: true, vaultId, created: false }, 200, request, env);
 }
 
 async function handleVaultGet(request, env, vaultId) {
+  const kv = resolveKv(env);
   const token = bearerToken(request);
-  const owner = await env.KV.get(vaultOwnerKey(vaultId));
+  const owner = await kv.get(vaultOwnerKey(vaultId));
   if (!owner) return errorResponse(404, 'not_found', 'vault 不存在', request, env);
   if (!token || token !== owner) return errorResponse(401, 'unauthorized', 'vaultToken 无效', request, env);
-  const ciphertext = await env.KV.get(vaultKey(vaultId));
+  const ciphertext = await kv.get(vaultKey(vaultId));
   if (ciphertext == null) return errorResponse(404, 'not_found', 'vault 不存在', request, env);
   return jsonResponse({ ok: true, vaultId, ciphertext }, 200, request, env);
 }
 
 async function handleVaultDelete(request, env, vaultId) {
+  const kv = resolveKv(env);
   const token = bearerToken(request);
-  const owner = await env.KV.get(vaultOwnerKey(vaultId));
+  const owner = await kv.get(vaultOwnerKey(vaultId));
   if (!owner) return errorResponse(404, 'not_found', 'vault 不存在', request, env);
   if (!token || token !== owner) return errorResponse(401, 'unauthorized', 'vaultToken 无效', request, env);
-  await env.KV.delete(vaultKey(vaultId));
-  await env.KV.delete(vaultOwnerKey(vaultId));
+  await kv.delete(vaultKey(vaultId));
+  await kv.delete(vaultOwnerKey(vaultId));
   return jsonResponse({ ok: true, deleted: vaultId }, 200, request, env);
 }
 
@@ -460,14 +478,15 @@ export default {
     try {
       // KV 绑定检查（除健康检查外）
       const url = new URL(request.url);
-      if (!env || !env.KV) {
+      const kv = resolveKv(env);
+      if (!kv) {
         if (url.pathname === '/v1/health' && request.method === 'GET') {
           return handleHealth(request, env);
         }
         if (request.method === 'OPTIONS') {
           return new Response(null, { status: 204, headers: corsHeaders(request, env) });
         }
-        return errorResponse(500, 'kv_unbound', 'KV 未绑定：请在 wrangler.toml 配置 [[kv_namespaces]]', request, env);
+        return errorResponse(500, 'kv_unbound', 'KV 未绑定：请在 Cloudflare Dashboard 绑定 KV Namespace（变量名 KV 或 LSK_KV）', request, env);
       }
 
       // 速率限制（OPTIONS / health 不计入）
@@ -486,6 +505,7 @@ export default {
 // 供本地单测复用的内部函数（Node 环境按需 import）
 export const _internal = {
   VERSION,
+  resolveKv,
   generateTeamCode,
   randomBase64Url,
   parseCorsOrigins,

@@ -1,5 +1,5 @@
-// service-worker.js — v0.8.4 PWA cache（创建队伍错误提示 + 导航高亮修复）
-const CACHE_NAME = 'lsk-cache-v0.8.4';
+// service-worker.js — v0.8.5 PWA cache（Worker 兼容 KV / LSK_KV 双 binding 名）
+const CACHE_NAME = 'lsk-cache-v0.8.5';
 
 const APP_SHELL = [
   './',
