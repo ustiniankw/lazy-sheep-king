@@ -1,5 +1,5 @@
-// service-worker.js — v0.7.0 PWA cache（加密备份 + 手机端修复）
-const CACHE_NAME = 'lsk-cache-v0.7.0';
+// service-worker.js — v0.8.0 PWA cache（Cloudflare Workers 后端 + 可选云同步）
+const CACHE_NAME = 'lsk-cache-v0.8.0';
 
 const APP_SHELL = [
   './',
@@ -24,6 +24,8 @@ const APP_SHELL = [
   './lib/pwa_update.js',
   './lib/crypto_backup.js',
   './lib/wordlist.js',
+  './lib/sync_client.js',
+  './lib/sync_config.js',
   './icons/icon-16.png',
   './icons/icon-32.png',
   './icons/icon-48.png',

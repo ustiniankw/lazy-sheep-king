@@ -18,6 +18,8 @@ const {
   decryptBlob,
   encryptWithMnemonic,
   decryptWithMnemonic,
+  deriveVaultId,
+  deriveVaultToken,
   DEFAULT_WORD_COUNT,
 } = await import('../lib/crypto_backup.js');
 const { WORDLIST_SET, WORDLIST_SIZE } = await import('../lib/wordlist.js');
@@ -150,5 +152,40 @@ describe('wordlist', () => {
   it('词表为 512 且无重复', () => {
     assert.equal(WORDLIST_SIZE, 512);
     assert.equal(WORDLIST_SET.size, 512);
+  });
+});
+
+describe('v0.8 云同步 vault 派生', () => {
+  it('deriveVaultId 稳定、32 位 hex', async () => {
+    const m = generateMnemonic();
+    const a = await deriveVaultId(m);
+    const b = await deriveVaultId(m);
+    assert.equal(a, b);
+    assert.match(a, /^[0-9a-f]{32}$/);
+  });
+
+  it('deriveVaultToken 稳定、32 位 hex', async () => {
+    const m = generateMnemonic();
+    const a = await deriveVaultToken(m);
+    const b = await deriveVaultToken(m);
+    assert.equal(a, b);
+    assert.match(a, /^[0-9a-f]{32}$/);
+  });
+
+  it('vaultId 与 vaultToken 不相等（不同盐）', async () => {
+    const m = generateMnemonic();
+    assert.notEqual(await deriveVaultId(m), await deriveVaultToken(m));
+  });
+
+  it('不同短语派生不同 vaultId', async () => {
+    const a = generateMnemonic();
+    let b = generateMnemonic();
+    while (b === a) b = generateMnemonic();
+    assert.notEqual(await deriveVaultId(a), await deriveVaultId(b));
+  });
+
+  it('大小写 / 空格归一化后派生一致', async () => {
+    const m = generateMnemonic();
+    assert.equal(await deriveVaultId(m), await deriveVaultId(`  ${m.toUpperCase()}  `));
   });
 });

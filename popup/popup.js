@@ -25,8 +25,10 @@ import { computeBreakpoint } from '../lib/layout.js';
 import { installSWUpdateWatcher } from '../lib/pwa_update.js';
 import { AVATAR_STYLES, IDENTITY_STORE_KEY } from '../lib/identity.js';
 import * as CryptoBackup from '../lib/crypto_backup.js';
+import * as SyncClient from '../lib/sync_client.js';
+import { DEFAULT_BACKEND_URL } from '../lib/sync_config.js';
 
-const APP_VERSION = '0.7.0';
+const APP_VERSION = '0.8.0';
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const urlParams = new URLSearchParams(location.search);
@@ -64,6 +66,7 @@ const PRIVACY_LABELS = {
   [PRIVACY.FULL_PRIVATE]: '🫥 完全隐私',
 };
 const TEAM_SYNC_INTERVAL_MS = 60_000;
+const TEAM_CLOUD_INTERVAL_MS = 30_000; // v0.8.0 云同步：30s 心跳 + 拉取
 
 if (urlParams.get('full') === '1' || urlParams.get('pwa') === '1') document.body.classList.add('full', 'full-page');
 
@@ -901,6 +904,92 @@ async function ensureLocalTeamState() {
   return { teamSelf, teamState: nextState };
 }
 
+// ---------------------------------------------------------------------------
+// v0.8.0 · 云同步：Worker 队伍快照 ↔ 本地 teamState 结构转换
+// ---------------------------------------------------------------------------
+function cloudMemberToLocal(member) {
+  const snap = member?.snapshot || {};
+  const percent = Math.max(0, Math.min(100, Number(snap.progress || 0)));
+  const title = snap.activeTaskTitle ? String(snap.activeTaskTitle) : '空闲中';
+  return {
+    userId: String(member.memberId),
+    name: String(member.nickname || '懒羊羊伙伴'),
+    device: 'Web',
+    provider: '',
+    updatedAt: Number(member.lastSeenAt || member.joinedAt || 0),
+    lastActiveAt: Number(member.lastSeenAt || 0),
+    todaySteps: 0,
+    streak: 0,
+    activeTaskView: {
+      privacy: PRIVACY.PUBLIC,
+      title,
+      progressText: `${percent}%`,
+      percent,
+      label: snap.activeTaskTitle ? `${title} · ${percent}%` : `进度 ${percent}%`,
+      totalSteps: 0,
+      doneSteps: 0,
+    },
+  };
+}
+
+function cloudTeamToLocalState(team, code) {
+  const members = {};
+  (Array.isArray(team?.members) ? team.members : []).forEach((m) => {
+    if (m?.memberId) members[String(m.memberId)] = cloudMemberToLocal(m);
+  });
+  const pokes = (Array.isArray(team?.recentPokes) ? team.recentPokes : []).map((p) => ({
+    pokeId: String(p.pokeId || `poke_${p.ts || Date.now()}`),
+    from: String(p.fromMemberId || ''),
+    to: String(p.toMemberId || ''),
+    message: String(p.emoji || '👊'),
+    ts: Number(p.ts || 0),
+    read: false,
+  }));
+  return { code: String(code || team?.code || ''), members, pokes, updatedAt: Date.now() };
+}
+
+async function syncTeamStateCloud(cloud, teamSelf, teamState) {
+  const code = teamSelf.teamCode;
+  const token = teamSelf.cloudToken;
+  const [profile, stats, tasks, activeTask, settings] = await Promise.all([
+    ensureProfile(),
+    Storage.getStats(),
+    Storage.getTasks(),
+    Storage.getActiveTask(),
+    Storage.getSettings(),
+  ]);
+  const memberId = teamSelf.cloudMemberId || profile.userId;
+  const mySnap = buildMyMemberSnapshot({
+    profile,
+    stats,
+    tasks,
+    dailyLog: stats.dailyLog,
+    activeTask,
+    privacy: activeTask?.privacy || settings?.team?.defaultPrivacy || PRIVACY.PUBLIC,
+    provider: '',
+  });
+  const view = mySnap.activeTaskView || {};
+  // 心跳：上报当前 active task 标题 + 进度 + 心情（尊重隐私设置）
+  const cloudSnapshot = {
+    progress: Number(view.percent || 0),
+    mood: '',
+    activeTaskTitle: view.title && view.title !== '空闲中' ? view.title : undefined,
+  };
+  try {
+    await SyncClient.heartbeat({ backendUrl: cloud.backendUrl, code, token, memberId, snapshot: cloudSnapshot });
+  } catch (error) {
+    // 心跳失败不致命，继续尝试拉取
+    console.warn('[懒羊羊大王] cloud heartbeat failed:', error?.message || error);
+  }
+  const res = await SyncClient.getTeam({ backendUrl: cloud.backendUrl, code, token });
+  const remoteState = cloudTeamToLocalState(res?.team, code);
+  const merged = mergeTeamState(teamState || {}, remoteState);
+  merged.code = code;
+  merged.updatedAt = Date.now();
+  await Storage.setTeamState(merged);
+  return merged;
+}
+
 async function updateTeamBellBadge() {
   const [profile, teamState] = await Promise.all([ensureProfile(), Storage.getTeamState()]);
   const unread = getUnreadPokesForState(teamState, profile.userId);
@@ -923,9 +1012,31 @@ async function maybeToastUnreadPokes() {
 
 async function syncTeamState({ force = false } = {}) {
   const { teamSelf, teamState } = await ensureLocalTeamState();
-  if (!teamSelf.teamCode || !teamSelf.syncUrl) return teamState;
-  if (!force && Date.now() - teamLastAttemptAt < TEAM_SYNC_INTERVAL_MS) return teamState;
+  if (!teamSelf.teamCode) return teamState;
+  const cloud = await getCloudSyncConfig();
+  const useCloud = cloudSyncActive(cloud) && !!teamSelf.cloudToken;
+  if (!useCloud && !teamSelf.syncUrl) return teamState;
+  const minInterval = useCloud ? TEAM_CLOUD_INTERVAL_MS : TEAM_SYNC_INTERVAL_MS;
+  if (!force && Date.now() - teamLastAttemptAt < minInterval) return teamState;
   teamLastAttemptAt = Date.now();
+
+  // v0.8.0 · 云同步路径（Cloudflare Worker）
+  if (useCloud) {
+    try {
+      const merged = await syncTeamStateCloud(cloud, teamSelf, teamState);
+      teamSyncFailed = false;
+      return merged;
+    } catch (error) {
+      console.warn('[懒羊羊大王] cloud team sync failed:', error?.message || error);
+      teamSyncFailed = true;
+      return teamState;
+    } finally {
+      await updateTeamBellBadge();
+      if (currentView === 'team') await renderTeam();
+    }
+  }
+
+  // 免费 URL 同步路径（原有行为）
   const endpoint = normalizeTeamSyncEndpoint(teamSelf.syncUrl);
   if (!endpoint) {
     teamSyncFailed = true;
@@ -963,16 +1074,18 @@ async function syncTeamState({ force = false } = {}) {
 }
 
 async function ensureTeamSyncLoop() {
-  const teamSelf = await Storage.getTeamSelf();
+  const [teamSelf, cloud] = await Promise.all([Storage.getTeamSelf(), getCloudSyncConfig()]);
   if (teamSyncTimerId) {
     clearInterval(teamSyncTimerId);
     teamSyncTimerId = null;
   }
-  if (!teamSelf.syncUrl) return;
+  const useCloud = cloudSyncActive(cloud) && !!teamSelf.cloudToken;
+  if (!useCloud && !teamSelf.syncUrl) return;
+  const interval = useCloud ? TEAM_CLOUD_INTERVAL_MS : TEAM_SYNC_INTERVAL_MS;
   teamSyncTimerId = window.setInterval(() => {
     if (currentView !== 'team' && urlParams.get('full') !== '1') return;
     syncTeamState().catch(() => {});
-  }, TEAM_SYNC_INTERVAL_MS);
+  }, interval);
 }
 
 async function exportTeamSnapshot() {
@@ -1010,8 +1123,36 @@ async function importTeamSnapshot(file) {
 }
 
 async function createTeamFlow() {
+  const cloud = await getCloudSyncConfig();
+  // v0.8.0 · 云同步开启时走 Worker，否则保持本地 mock（向后兼容）
+  if (cloudSyncActive(cloud)) {
+    try {
+      const [profile, identity] = await Promise.all([ensureProfile(), getIdentity().catch(() => ({}))]);
+      const res = await SyncClient.createTeam({
+        backendUrl: cloud.backendUrl,
+        founder: {
+          memberId: profile.userId,
+          nickname: identity.nickname || profile.displayName || '懒羊羊伙伴',
+          avatarSeed: identity.avatarSeed || '',
+        },
+      });
+      await Storage.setTeamSelf({ teamCode: res.code, cloudToken: res.token, cloudMemberId: res.memberId, joinedAt: Date.now(), syncUrl: '' });
+      await Storage.setTeamState({ code: res.code, members: {}, pokes: [], updatedAt: Date.now() });
+      await ensureLocalTeamState();
+      await ensureTeamSyncLoop();
+      await syncTeamState({ force: true });
+      await updateTeamBellBadge();
+      const copied = await copyText(res.code);
+      flash(copied ? `已在云端创建队伍 ${res.code}，队伍码已复制 ☁️` : `已在云端创建队伍 ${res.code} ☁️`);
+      await renderTeam();
+      return;
+    } catch (error) {
+      flash(`云端创建失败，改用本地：${error?.message || error}`);
+      // 失败则回退本地
+    }
+  }
   const code = newTeamCode();
-  await Storage.setTeamSelf({ teamCode: code, joinedAt: Date.now(), syncUrl: '' });
+  await Storage.setTeamSelf({ teamCode: code, joinedAt: Date.now(), syncUrl: '', cloudToken: '', cloudMemberId: '' });
   await Storage.setTeamState({ code, members: {}, pokes: [], updatedAt: Date.now() });
   await ensureLocalTeamState();
   await ensureTeamSyncLoop();
@@ -1023,11 +1164,43 @@ async function createTeamFlow() {
 
 async function joinTeamFlow(codeInput) {
   const code = String(codeInput || '').trim().toUpperCase();
+  const cloud = await getCloudSyncConfig();
+  // v0.8.0 · 云同步开启时走 Worker（队伍码字符集更宽，避开易混淆字符）
+  if (cloudSyncActive(cloud)) {
+    if (!/^[0-9A-Z]{6}$/.test(code)) {
+      flash('请输入 6 位队伍码');
+      return;
+    }
+    try {
+      const [profile, identity] = await Promise.all([ensureProfile(), getIdentity().catch(() => ({}))]);
+      const res = await SyncClient.joinTeam({
+        backendUrl: cloud.backendUrl,
+        code,
+        member: {
+          memberId: profile.userId,
+          nickname: identity.nickname || profile.displayName || '懒羊羊伙伴',
+          avatarSeed: identity.avatarSeed || '',
+        },
+      });
+      await Storage.setTeamSelf({ teamCode: code, cloudToken: res.token, cloudMemberId: profile.userId, joinedAt: Date.now(), syncUrl: '' });
+      await Storage.setTeamState(cloudTeamToLocalState(res.teamSnapshot, code));
+      await ensureLocalTeamState();
+      await ensureTeamSyncLoop();
+      await syncTeamState({ force: true });
+      flash(`已加入云端队伍 ${code} ☁️`);
+      await renderTeam();
+      return;
+    } catch (error) {
+      const msg = error instanceof SyncClient.SyncHttpError && error.status === 404 ? '队伍不存在' : (error?.message || error);
+      flash(`加入失败：${msg}`);
+      return;
+    }
+  }
   if (!/^[0-9A-F]{6}$/.test(code)) {
     flash('请输入 6 位十六进制队伍码');
     return;
   }
-  await Storage.setTeamSelf({ teamCode: code, joinedAt: Date.now() });
+  await Storage.setTeamSelf({ teamCode: code, joinedAt: Date.now(), cloudToken: '', cloudMemberId: '' });
   await Storage.setTeamState({ code, members: {}, pokes: [], updatedAt: Date.now() });
   await ensureLocalTeamState();
   await ensureTeamSyncLoop();
@@ -1045,8 +1218,30 @@ async function markPokeRead(pokeId) {
 }
 
 async function sendTeamPoke(toUserId) {
-  const [profile, teamState] = await Promise.all([ensureProfile(), Storage.getTeamState()]);
+  const [profile, teamState, teamSelf, cloud] = await Promise.all([
+    ensureProfile(), Storage.getTeamState(), Storage.getTeamSelf(), getCloudSyncConfig(),
+  ]);
   if (!toUserId || toUserId === profile.userId) return;
+  // v0.8.0 · 云同步开启时走 Worker
+  if (cloudSyncActive(cloud) && teamSelf.cloudToken) {
+    try {
+      await SyncClient.poke({
+        backendUrl: cloud.backendUrl,
+        code: teamSelf.teamCode,
+        token: teamSelf.cloudToken,
+        from: profile.userId,
+        to: toUserId,
+        emoji: '👊',
+      });
+      await syncTeamState({ force: true });
+      flash('已拍队友（云端）· 待其打开看到');
+      if (currentView === 'team') await renderTeam();
+      return;
+    } catch (error) {
+      flash(`拍一拍失败：${error?.message || error}`);
+      return;
+    }
+  }
   const poke = makePoke({ from: profile.userId, to: toUserId, message: '继续冲呀！' });
   const merged = mergeTeamState(teamState, { code: teamState.code, members: {}, pokes: [poke], updatedAt: Date.now() });
   await Storage.setTeamState(merged);
@@ -1569,6 +1764,197 @@ async function renderE2eBackupCard() {
     exportBtn.classList.add('hidden');
     status.textContent = '请先生成备份短语，再导出加密备份。短语只在本机、只显示一次，务必抄好——丢了就无法恢复。';
   }
+  // v0.8.0 · 云同步 ON + 已有短语时，暴露云端上传/恢复按钮
+  const cloud = await getCloudSyncConfig();
+  const active = cloudSyncActive(cloud);
+  const uploadBtn = $('#btn-cloud-upload-vault');
+  const restoreBtn = $('#btn-cloud-restore-vault');
+  const hint = $('#cloud-vault-hint');
+  if (uploadBtn && restoreBtn && hint) {
+    // 上传需要已有短语；恢复只要云同步开启即可（新设备可能还没生成短语）
+    uploadBtn.classList.toggle('hidden', !(active && has));
+    restoreBtn.classList.toggle('hidden', !active);
+    hint.classList.toggle('hidden', !active);
+  }
+}
+
+// ===========================================================================
+// v0.8.0 · 云同步（Cloudflare Worker）
+// 默认关闭；关闭 / 未配置 backendUrl 时，所有队伍逻辑走本地 mock（行为不变）。
+// ===========================================================================
+async function getCloudSyncConfig() {
+  const settings = await Storage.getSettings();
+  const backendUrl = String((settings.backendUrl ?? DEFAULT_BACKEND_URL) || '').trim();
+  return {
+    enabled: !!settings.cloudSyncEnabled,
+    backendUrl,
+    configured: !!backendUrl,
+  };
+}
+
+function cloudSyncActive(cloud) {
+  return !!(cloud && cloud.enabled && cloud.configured);
+}
+
+function setCloudLight(state) {
+  // state: 'connected' | 'checking' | 'off'
+  const light = $('#cloud-sync-light');
+  if (!light) return;
+  light.textContent = state === 'connected' ? '🟢' : state === 'checking' ? '🟡' : '🔴';
+}
+
+async function renderCloudSyncCard() {
+  const cloud = await getCloudSyncConfig();
+  const toggle = $('#cloud-sync-toggle');
+  const urlInput = $('#cloud-backend-url');
+  const statusEl = $('#cloud-sync-status');
+  if (!toggle || !urlInput || !statusEl) return;
+  const settings = await Storage.getSettings();
+  toggle.checked = !!settings.cloudSyncEnabled;
+  // 只有当用户设置了自建地址时才回填输入框；默认用占位符提示
+  if (document.activeElement !== urlInput) {
+    urlInput.value = settings.backendUrl ? String(settings.backendUrl) : '';
+  }
+  if (!cloud.configured) {
+    setCloudLight('off');
+    statusEl.textContent = '未配置后端地址：填入 workers.dev 地址后即可启用（单机使用无需开启）。';
+  } else if (!cloud.enabled) {
+    setCloudLight('off');
+    statusEl.textContent = `已配置 ${cloud.backendUrl}，但云同步未开启（单机使用无需开启）。`;
+  } else {
+    setCloudLight('checking');
+    statusEl.textContent = `云同步已开启 · ${cloud.backendUrl}（点「测试连接」验证）`;
+  }
+}
+
+async function toggleCloudSync(enabled) {
+  settingsCache = await Storage.setSettings({ cloudSyncEnabled: !!enabled });
+  if (enabled) {
+    const cloud = await getCloudSyncConfig();
+    if (!cloud.configured) {
+      flash('已开启，但还没配置后端地址；请先填「自建服务器地址」或让维护者填默认地址');
+    } else {
+      flash('已开启云同步 ☁️');
+      await testCloudConnection({ silent: true });
+    }
+  } else {
+    flash('已关闭云同步（回到本地存储）');
+    setCloudLight('off');
+  }
+  await renderCloudSyncCard();
+  await renderE2eBackupCard();
+}
+
+async function saveCloudBackendUrl(value) {
+  const url = String(value || '').trim();
+  settingsCache = await Storage.setSettings({ backendUrl: url || null });
+  flash(url ? '已保存自建服务器地址' : '已清空，改用默认地址');
+  await renderCloudSyncCard();
+  await renderE2eBackupCard();
+}
+
+async function testCloudConnection({ silent = false } = {}) {
+  const cloud = await getCloudSyncConfig();
+  const statusEl = $('#cloud-sync-status');
+  if (!cloud.configured) {
+    setCloudLight('off');
+    if (statusEl) statusEl.textContent = '还没配置后端地址，无法测试。';
+    if (!silent) flash('请先填入后端地址');
+    return false;
+  }
+  setCloudLight('checking');
+  if (statusEl) statusEl.textContent = '正在检查连接…';
+  try {
+    const res = await SyncClient.pingHealth({ backendUrl: cloud.backendUrl });
+    setCloudLight('connected');
+    if (statusEl) statusEl.textContent = `🟢 已连接 · 后端版本 ${res?.version || '?'}`;
+    if (!silent) flash('云端连接正常 ✅');
+    return true;
+  } catch (error) {
+    setCloudLight('off');
+    if (statusEl) statusEl.textContent = `🔴 连接失败：${error?.message || error}`;
+    if (!silent) flash('云端连接失败，请检查地址');
+    return false;
+  }
+}
+
+// ---- 云端 vault：把加密备份存到云端 / 从云端恢复 ----
+function packCiphertext(blob) {
+  const json = JSON.stringify(blob);
+  if (typeof btoa === 'function') return btoa(unescape(encodeURIComponent(json)));
+  return Buffer.from(json, 'utf-8').toString('base64');
+}
+
+function unpackCiphertext(ciphertext) {
+  let json;
+  if (typeof atob === 'function') json = decodeURIComponent(escape(atob(String(ciphertext || ''))));
+  else json = Buffer.from(String(ciphertext || ''), 'base64').toString('utf-8');
+  return JSON.parse(json);
+}
+
+async function cloudUploadVault() {
+  const cloud = await getCloudSyncConfig();
+  if (!cloudSyncActive(cloud)) { flash('请先开启云同步'); return; }
+  const storedHash = await getStoredMnemonicHash();
+  if (!storedHash) { flash('请先生成备份短语', { big: true }); return; }
+  openPhraseModal({
+    title: '☁️ 上传到云端',
+    label: '输入 14 词备份短语：本地加密后仅上传密文，服务端不解密',
+    onSubmit: async (phrase) => {
+      if (!CryptoBackup.validateMnemonic(phrase)) {
+        showPhraseError('短语格式不对：需要 14 个词，且都在词表内');
+        return;
+      }
+      const inputHash = await CryptoBackup.mnemonicHash(phrase);
+      if (inputHash !== storedHash) { showPhraseError('这句短语和你生成的那套不一致'); return; }
+      try {
+        const [vaultId, vaultToken] = await Promise.all([
+          CryptoBackup.deriveVaultId(phrase),
+          CryptoBackup.deriveVaultToken(phrase),
+        ]);
+        const data = await collectFullBackupData();
+        const blob = await CryptoBackup.encryptWithMnemonic(data, phrase);
+        const ciphertext = packCiphertext({ format: 'lsk-e2e-backup', version: APP_VERSION, ...blob });
+        await SyncClient.putVault({ backendUrl: cloud.backendUrl, vaultId, ciphertext, token: vaultToken, newVaultToken: vaultToken });
+        closePhraseModal();
+        flash('已上传到云端 ☁️🔐');
+      } catch (error) {
+        showPhraseError(`上传失败：${error?.message || error}`);
+      }
+    },
+  });
+}
+
+async function cloudRestoreVault() {
+  const cloud = await getCloudSyncConfig();
+  if (!cloudSyncActive(cloud)) { flash('请先开启云同步'); return; }
+  openPhraseModal({
+    title: '☁️ 从云端恢复',
+    label: '输入 14 词备份短语：将从云端拉取并在本地解密（无需扫码）',
+    onSubmit: async (phrase) => {
+      if (!CryptoBackup.validateMnemonic(phrase)) {
+        showPhraseError('短语格式不对：需要 14 个词，且都在词表内');
+        return;
+      }
+      try {
+        const [vaultId, vaultToken] = await Promise.all([
+          CryptoBackup.deriveVaultId(phrase),
+          CryptoBackup.deriveVaultToken(phrase),
+        ]);
+        const res = await SyncClient.getVault({ backendUrl: cloud.backendUrl, vaultId, token: vaultToken });
+        const blob = unpackCiphertext(res?.ciphertext);
+        const payload = await CryptoBackup.decryptWithMnemonic(blob, phrase);
+        await applyBackupPayload(payload);
+        closePhraseModal();
+        flash('已从云端恢复全部数据 ☁️✅');
+      } catch (error) {
+        const msg = error instanceof SyncClient.SyncHttpError && error.status === 404
+          ? '云端没有找到这套短语对应的备份'
+          : (error?.message || error);
+        showPhraseError(`恢复失败：${msg}`);
+      }
+    },
+  });
 }
 
 function initialAvatar(name) {
@@ -1848,6 +2234,7 @@ async function renderMyView() {
   await renderDiagPanel(settings);
   await updateAiNudge(settings, tier);
   await renderE2eBackupCard();
+  await renderCloudSyncCard();
 }
 
 async function enterMyView() {
@@ -2387,6 +2774,23 @@ $('#e2e-import-file-input').addEventListener('change', async (event) => {
   } finally {
     event.target.value = '';
   }
+});
+
+// v0.8.0 · 云同步交互
+$('#cloud-sync-toggle')?.addEventListener('change', (event) => {
+  toggleCloudSync(event.target.checked).catch((e) => flash(`操作失败：${e.message || e}`));
+});
+$('#btn-cloud-save-url')?.addEventListener('click', () => {
+  saveCloudBackendUrl($('#cloud-backend-url')?.value).catch((e) => flash(`保存失败：${e.message || e}`));
+});
+$('#btn-cloud-test')?.addEventListener('click', () => {
+  testCloudConnection().catch((e) => flash(`测试失败：${e.message || e}`));
+});
+$('#btn-cloud-upload-vault')?.addEventListener('click', () => {
+  cloudUploadVault().catch((e) => flash(`上传失败：${e.message || e}`, { big: true }));
+});
+$('#btn-cloud-restore-vault')?.addEventListener('click', () => {
+  cloudRestoreVault().catch((e) => flash(`恢复失败：${e.message || e}`, { big: true }));
 });
 
 // 备份短语弹窗：复制 / 下载 / 勾选"已保存"后才能关闭

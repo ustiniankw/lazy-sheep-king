@@ -1,0 +1,14 @@
+{
+  "name": "lsk-sync",
+  "version": "0.8.0",
+  "private": true,
+  "description": "懒羊羊大王 · Cloudflare Workers 云同步后端（队伍状态 + E2E 加密 vault）",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
