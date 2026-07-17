@@ -394,7 +394,6 @@
       <section class="view view-team hidden" data-view="team">
         <h1 class="ios-large-title">组队模式</h1>
         <div id="team-root"></div>
-        <input id="team-snapshot-file-input" type="file" accept="application/json" style="display:none" />
       </section>
 
       <!-- My -->
@@ -503,13 +502,13 @@
 
         <div class="my-card" id="cloud-sync-card">
           <div class="my-card-title">
-            ☁️ 云同步
+            ☁️ 云端组队（连接到官方服务器）
             <span id="cloud-sync-light" class="cloud-light" title="状态">🔴</span>
           </div>
-          <div class="my-card-sub">开启后队伍进度会经 Cloudflare Workers 中转；单机使用无需开启。</div>
+          <div class="my-card-sub">默认自动连接官方服务器，组队进度实时同步；如需自建服务器可在下方填写。</div>
           <div class="my-actions-grid" style="margin-top:8px;">
             <label class="cloud-toggle-row" for="cloud-sync-toggle">
-              <span>启用云同步</span>
+              <span>自动连接云端</span>
               <input type="checkbox" id="cloud-sync-toggle" />
             </label>
           </div>

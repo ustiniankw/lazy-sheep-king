@@ -8,7 +8,7 @@ globalThis.localStorage = {
 globalThis.chrome = undefined;
 
 const { Storage } = await import('../lib/storage.js');
-const { PRIVACY, newTeamCode, buildMyMemberSnapshot, mergeTeamState, makePoke } = await import('../lib/team.js');
+const { PRIVACY, newTeamCode, buildMyMemberSnapshot, mergeTeamState, makePoke, deriveMemberId, resolveTeamBackend, parseJoinCode, LocalTeamMock, makeTeamFacade } = await import('../lib/team.js');
 
 let pass = 0;
 let fail = 0;
@@ -204,6 +204,125 @@ await t('pushPokes 会把新 poke 合并进 teamState', async () => {
   await Storage.pushPokes({ pokeId: 'px', from: 'u1', to: 'u2', ts: 1, read: false });
   const teamState = await Storage.getTeamState();
   eq(teamState.pokes.length, 1);
+});
+
+console.log('team.js · v0.8.2 云端接线');
+
+await t('deriveMemberId 对同一 seed 稳定', async () => {
+  eq(deriveMemberId('device-abc'), deriveMemberId('device-abc'));
+});
+
+await t('deriveMemberId 对不同 seed 不同', async () => {
+  ok(deriveMemberId('device-abc') !== deriveMemberId('device-xyz'), '不同种子应产生不同 id');
+});
+
+await t('deriveMemberId 带 m_ 前缀', async () => {
+  ok(/^m_[0-9a-f]{8}$/.test(deriveMemberId('seed')), '格式应为 m_ + 8位十六进制');
+});
+
+await t('resolveTeamBackend: 有 URL 且健康 → cloud', async () => {
+  eq(resolveTeamBackend({ backendUrl: 'https://x.workers.dev', healthy: true }), 'cloud');
+});
+
+await t('resolveTeamBackend: 有 URL 但不健康 → local', async () => {
+  eq(resolveTeamBackend({ backendUrl: 'https://x.workers.dev', healthy: false }), 'local');
+});
+
+await t('resolveTeamBackend: 无 URL → local', async () => {
+  eq(resolveTeamBackend({ backendUrl: '', healthy: true }), 'local');
+});
+
+await t('parseJoinCode 解析 ?join=XXXXXX', async () => {
+  eq(parseJoinCode('?join=E36500'), 'E36500');
+});
+
+await t('parseJoinCode 解析完整 URL', async () => {
+  eq(parseJoinCode('https://x.github.io/lazy-sheep-king/?join=abc123&foo=1'), 'ABC123');
+});
+
+await t('parseJoinCode 非法码返回空串', async () => {
+  eq(parseJoinCode('?join=zz'), '');
+  eq(parseJoinCode('?other=1'), '');
+  eq(parseJoinCode(''), '');
+});
+
+await t('LocalTeamMock create + get + join 全流程', async () => {
+  const mock = new LocalTeamMock();
+  const created = await mock.createTeam({ founder: { memberId: 'm_a', nickname: '队长' } });
+  ok(created.ok && created.code && created.token, 'create 返回 code/token');
+  const joined = await mock.joinTeam({ code: created.code, member: { memberId: 'm_b', nickname: '队友' } });
+  ok(joined.ok, 'join 成功');
+  const got = await mock.getTeam({ code: created.code });
+  eq(got.team.members.length, 2);
+});
+
+await t('LocalTeamMock 同一 memberId 重复 join 不重复注册', async () => {
+  const mock = new LocalTeamMock();
+  const created = await mock.createTeam({ founder: { memberId: 'm_a', nickname: '队长' } });
+  await mock.joinTeam({ code: created.code, member: { memberId: 'm_a', nickname: '队长2' } });
+  const got = await mock.getTeam({ code: created.code });
+  eq(got.team.members.length, 1);
+});
+
+await t('LocalTeamMock heartbeat 更新 snapshot', async () => {
+  const mock = new LocalTeamMock();
+  const created = await mock.createTeam({ founder: { memberId: 'm_a', nickname: '队长' } });
+  await mock.heartbeat({ code: created.code, memberId: 'm_a', snapshot: { progress: 50 } });
+  const got = await mock.getTeam({ code: created.code });
+  eq(got.team.members[0].snapshot.progress, 50);
+});
+
+await t('LocalTeamMock poke 写入 recentPokes（toMemberId）', async () => {
+  const mock = new LocalTeamMock();
+  const created = await mock.createTeam({ founder: { memberId: 'm_a', nickname: '队长' } });
+  await mock.poke({ code: created.code, from: 'm_a', to: 'm_b', emoji: '👊' });
+  const got = await mock.getTeam({ code: created.code });
+  eq(got.team.recentPokes.length, 1);
+  eq(got.team.recentPokes[0].toMemberId, 'm_b');
+});
+
+await t('LocalTeamMock leaveTeam 移除成员', async () => {
+  const mock = new LocalTeamMock();
+  const created = await mock.createTeam({ founder: { memberId: 'm_a', nickname: '队长' } });
+  await mock.joinTeam({ code: created.code, member: { memberId: 'm_b', nickname: '队友' } });
+  await mock.leaveTeam({ code: created.code, memberId: 'm_b' });
+  const got = await mock.getTeam({ code: created.code });
+  eq(got.team.members.length, 1);
+});
+
+await t('makeTeamFacade local 模式委派给 localMock', async () => {
+  const mock = new LocalTeamMock();
+  const facade = makeTeamFacade({ mode: 'local', localMock: mock });
+  eq(facade.mode, 'local');
+  const created = await facade.createTeam({ founder: { memberId: 'm_a', nickname: 'x' } });
+  ok(created.ok, 'facade.createTeam 走本地 mock');
+});
+
+await t('makeTeamFacade cloud 模式透传 backendUrl 给 syncClient', async () => {
+  let captured = null;
+  const fakeSync = { createTeam: (opts) => { captured = opts; return { ok: true }; } };
+  const facade = makeTeamFacade({ mode: 'cloud', syncClient: fakeSync, backendUrl: 'https://x.workers.dev' });
+  eq(facade.mode, 'cloud');
+  await facade.createTeam({ founder: { memberId: 'm_a' } });
+  eq(captured.backendUrl, 'https://x.workers.dev');
+  eq(captured.founder.memberId, 'm_a');
+});
+
+console.log('Storage · v0.8.2 team session');
+
+await t('getTeamSession / setTeamSession / clearTeamSession', async () => {
+  await Storage.resetAllLocalData();
+  await Storage.setTeamSession({ teamCode: 'e36500', teamToken: 'tok', teamMemberId: 'm_a', teamPokeSeenTs: 99 });
+  let s = await Storage.getTeamSession();
+  eq(s.teamCode, 'E36500');
+  eq(s.teamToken, 'tok');
+  eq(s.teamMemberId, 'm_a');
+  eq(s.teamPokeSeenTs, 99);
+  await Storage.clearTeamSession();
+  s = await Storage.getTeamSession();
+  eq(s.teamCode, '');
+  eq(s.teamToken, '');
+  eq(s.teamMemberId, '');
 });
 
 console.log(`\nresult: ${pass} passed, ${fail} failed`);

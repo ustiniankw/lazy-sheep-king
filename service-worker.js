@@ -1,5 +1,5 @@
-// service-worker.js — v0.8.0 PWA cache（Cloudflare Workers 后端 + 可选云同步）
-const CACHE_NAME = 'lsk-cache-v0.8.0';
+// service-worker.js — v0.8.3 PWA cache（组队 tab 首屏不再被健康探测阻塞）
+const CACHE_NAME = 'lsk-cache-v0.8.3';
 
 const APP_SHELL = [
   './',
